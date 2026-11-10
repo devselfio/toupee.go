@@ -11,18 +11,25 @@ const (
 	includeNode
 	extendNode
 	boundTagNode
+	conditionalNode
+	loopNode
+	letNode
 )
 
-// node is one element of a parsed template. Comments produce no node.
+// node is one element of a parsed template. Comments produce no node. Only
+// the field kind selects is meaningful.
 type node struct {
-	kind       nodeKind
-	text       string
-	variable   variable
-	attrOutput attrOutput
-	slot       slot
-	include    include
-	extension  extension
-	boundTag   boundTag
+	kind        nodeKind
+	text        string
+	variable    variable
+	attrOutput  attrOutput
+	slot        slot
+	include     include
+	extension   extension
+	boundTag    boundTag
+	conditional *conditional
+	loop        *loop
+	let         *letBinding
 }
 
 // variable is a t-var (escaped) or t-raw (raw) element.

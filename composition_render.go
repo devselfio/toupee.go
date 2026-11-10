@@ -10,9 +10,17 @@ import (
 // the replacement's own anonymous slot can render it.
 const parkedSlot = "__t_inner_body__"
 
-// renderTemplate parses source, the template name, and renders it against
-// ctx at depth. A source that uses a deferred construct is errDeferred.
-func (r *renderer) renderTemplate(source, name string, ctx Context, depth int) (string, error) {
+// activeFill is a slot fill being rendered: the slot's name, the fill's
+// source and the scope the slot was met in. While the fill renders that
+// scope is not written, so it can be compared with a later one.
+type activeFill struct {
+	name, source string
+	ctx          *renderContext
+}
+
+// renderTemplate parses source, the template name, and renders it in ctx
+// at depth. A source that uses a deferred construct is errDeferred.
+func (r *renderer) renderTemplate(source, name string, ctx *renderContext, depth int) (string, error) {
 	if depth > maxDepth {
 		return "", errorAt(source, 0, CircularReference, name)
 	}
@@ -23,8 +31,8 @@ func (r *renderer) renderTemplate(source, name string, ctx Context, depth int) (
 	if tmpl.deferred {
 		return "", errDeferred
 	}
-	child := &renderer{source: source, ctx: ctx, loader: r.loader, templateName: name, depth: depth, fills: r.fills}
-	return child.renderNodes(tmpl.nodes)
+	child := &renderer{source: source, loader: r.loader, templateName: name, depth: depth, fills: r.fills}
+	return child.renderNodes(tmpl.nodes, ctx)
 }
 
 // loadTemplate returns the source of the template name, requested by the
@@ -48,8 +56,8 @@ func (r *renderer) loadTemplate(name string, pos int) (string, error) {
 
 // renderAttrOutput renders the escaped include attribute a names, or
 // nothing when there is none.
-func (r *renderer) renderAttrOutput(a attrOutput) string {
-	if v, ok := r.ctx.Attrs[a.name]; ok {
+func (r *renderer) renderAttrOutput(a attrOutput, ctx *renderContext) string {
+	if v, ok := ctx.attrs[a.name]; ok {
 		return escapeHTML(v)
 	}
 	return ""
@@ -59,7 +67,7 @@ func (r *renderer) renderAttrOutput(a attrOutput) string {
 // as ` ATTR="VALUE"` with VALUE escaped. A variable binding takes a scalar
 // from the data; an attr binding takes an include attribute. A binding with
 // no value is omitted with its leading space; it is never an error.
-func (r *renderer) renderBoundTag(tag boundTag) (string, error) {
+func (r *renderer) renderBoundTag(tag boundTag, ctx *renderContext) (string, error) {
 	var b bytes.Buffer
 	for _, seg := range tag.segments {
 		if seg.binding == nil {
@@ -70,11 +78,11 @@ func (r *renderer) renderBoundTag(tag boundTag) (string, error) {
 		var ok bool
 		if seg.binding.variable {
 			var val Value
-			if val, ok = resolve(r.ctx, seg.binding.refName); ok {
+			if val, ok = ctx.lookup(seg.binding.refName); ok {
 				value, ok = scalarString(val)
 			}
 		} else {
-			value, ok = r.ctx.Attrs[seg.binding.refName]
+			value, ok = ctx.attrs[seg.binding.refName]
 		}
 		if !ok {
 			continue
@@ -89,35 +97,30 @@ func (r *renderer) renderBoundTag(tag boundTag) (string, error) {
 }
 
 // renderInclude renders the template inc names into out, indented to the
-// insertion point. The template sees a copy of the caller's data, or no
-// data when isolated, overlaid with the context bindings that resolve, and
+// insertion point. The template sees a copy of ctx's data, or no data when
+// isolated, overlaid with the context bindings that resolve in ctx, and
 // only the include's own attributes and fills.
-func (r *renderer) renderInclude(inc include, out *bytes.Buffer) error {
+func (r *renderer) renderInclude(inc include, ctx *renderContext, out *bytes.Buffer) error {
 	src, err := r.loadTemplate(inc.template, inc.pos)
 	if err != nil {
 		return err
 	}
-	var child Context
-	if inc.isolated {
-		child.Data = map[string]Value{}
-	} else {
-		child = cloneContext(r.ctx)
-		if child.Data == nil {
-			child.Data = map[string]Value{}
-		}
+	child := &renderContext{data: map[string]Value{}}
+	if !inc.isolated {
+		child.data = cloneData(ctx.data)
 	}
 	for _, b := range inc.bindings {
-		if v, ok := resolve(r.ctx, b.path); ok {
-			child.Data[b.key] = v
+		if v, ok := ctx.lookup(b.path); ok {
+			child.data[b.key] = v
 		}
 	}
-	child.Attrs = maps.Clone(inc.attrs)
-	child.Slots = map[string]string{}
+	child.attrs = maps.Clone(inc.attrs)
+	child.slots = map[string]string{}
 	for _, d := range inc.defines {
-		child.Slots[d.name] = d.source
+		child.slots[d.name] = d.source
 	}
 	if inc.anonymousSource != "" {
-		child.Slots[""] = inc.anonymousSource
+		child.slots[""] = inc.anonymousSource
 	}
 	indent := insertionIndent(out)
 	rendered, err := r.renderTemplate(src, inc.template, child, r.depth+1)
@@ -129,25 +132,25 @@ func (r *renderer) renderInclude(inc include, out *bytes.Buffer) error {
 }
 
 // renderSlot renders the fill for s into out, indented to the insertion
-// point: the fill's source parsed and rendered in a copy of the current
-// context, or else s's default body, or else nothing. A present fill wins
-// even when empty. An anonymous slot whose fill replaced a parked one sees
-// the parked fill as its own anonymous slot.
-func (r *renderer) renderSlot(s slot, out *bytes.Buffer) error {
+// point: the fill's source parsed and rendered in a copy of ctx, or else
+// s's default body in ctx, or else nothing. A present fill wins even when
+// empty. An anonymous slot whose fill replaced a parked one sees the parked
+// fill as its own anonymous slot.
+func (r *renderer) renderSlot(s slot, ctx *renderContext, out *bytes.Buffer) error {
 	indent := insertionIndent(out)
-	fill, ok := r.ctx.Slots[s.name]
+	fill, ok := ctx.slots[s.name]
 	if !ok {
 		if len(s.body) == 0 {
 			return nil
 		}
-		rendered, err := r.renderNodes(s.body)
+		rendered, err := r.renderNodes(s.body, ctx)
 		if err != nil {
 			return err
 		}
 		appendIndented(out, rendered, indent)
 		return nil
 	}
-	if r.fills >= maxDepth {
+	if len(r.fills) >= maxDepth {
 		return errorAt(r.source, s.pos, CircularReference, s.name)
 	}
 	tmpl, err := parse(fill)
@@ -157,13 +160,15 @@ func (r *renderer) renderSlot(s slot, out *bytes.Buffer) error {
 	if tmpl.deferred {
 		return errDeferred
 	}
-	ctx := cloneContext(r.ctx)
-	if parked, ok := ctx.Slots[parkedSlot]; ok && s.name == "" {
-		ctx.Slots[""] = parked
-		delete(ctx.Slots, parkedSlot)
+	child := cloneRenderContext(ctx)
+	if parked, ok := ctx.slots[parkedSlot]; ok && s.name == "" {
+		child.slots = maps.Clone(ctx.slots)
+		child.slots[""] = parked
+		delete(child.slots, parkedSlot)
 	}
-	child := &renderer{source: fill, ctx: ctx, loader: r.loader, templateName: r.templateName, depth: r.depth, fills: r.fills + 1}
-	rendered, err := child.renderNodes(tmpl.nodes)
+	fills := append(r.fills[:len(r.fills):len(r.fills)], activeFill{name: s.name, source: fill, ctx: ctx})
+	fr := &renderer{source: fill, loader: r.loader, templateName: r.templateName, depth: r.depth, fills: fills}
+	rendered, err := fr.renderNodes(tmpl.nodes, child)
 	if err != nil {
 		return err
 	}
@@ -172,10 +177,10 @@ func (r *renderer) renderSlot(s slot, out *bytes.Buffer) error {
 }
 
 // renderExtend renders the chain of templates ext starts. Its definitions
-// override the context's slots; an anonymous one parks the anonymous fill
-// it replaces.
-func (r *renderer) renderExtend(ext extension) (string, error) {
-	slots := maps.Clone(r.ctx.Slots)
+// override ctx's slots; an anonymous one parks the anonymous fill it
+// replaces.
+func (r *renderer) renderExtend(ext extension, ctx *renderContext) (string, error) {
+	slots := maps.Clone(ctx.slots)
 	if slots == nil {
 		slots = map[string]string{}
 	}
@@ -185,22 +190,22 @@ func (r *renderer) renderExtend(ext extension) (string, error) {
 		}
 		slots[d.name] = d.source
 	}
-	return r.resolveExtendChain(ext.template, slots, ext.pos)
+	return r.resolveExtendChain(ext.template, slots, ext.pos, ctx)
 }
 
 // resolveExtendChain follows the extends from the template name, requested
 // at pos in r.source, to the first template that does not extend, adding
 // each parent's definitions for names not yet filled, and renders that
-// template with slots. Requesting a template already in the chain is a
-// CircularReference at the requesting extend. An empty template renders as
-// "".
-func (r *renderer) resolveExtendChain(name string, slots map[string]string, pos int) (string, error) {
+// template with a copy of ctx's data, its attrs and slots. Requesting a
+// template already in the chain is a CircularReference at the requesting
+// extend. An empty template renders as "".
+func (r *renderer) resolveExtendChain(name string, slots map[string]string, pos int, ctx *renderContext) (string, error) {
 	visited := map[string]bool{name: true}
 	src, err := r.loadTemplate(name, pos)
 	if err != nil {
 		return "", err
 	}
-	cur := &renderer{source: src, ctx: r.ctx, loader: r.loader, templateName: name, depth: r.depth, fills: r.fills}
+	cur := &renderer{source: src, loader: r.loader, templateName: name, depth: r.depth, fills: r.fills}
 	for {
 		tmpl, err := parse(cur.source)
 		if err != nil {
@@ -213,9 +218,8 @@ func (r *renderer) resolveExtendChain(name string, slots map[string]string, pos 
 			return "", nil
 		}
 		if tmpl.nodes[0].kind != extendNode {
-			cur.ctx = cloneContext(r.ctx)
-			cur.ctx.Slots = slots
-			return cur.renderNodes(tmpl.nodes)
+			leaf := &renderContext{data: cloneData(ctx.data), attrs: ctx.attrs, slots: slots}
+			return cur.renderNodes(tmpl.nodes, leaf)
 		}
 		parent := tmpl.nodes[0].extension
 		if visited[parent.template] {
@@ -231,7 +235,7 @@ func (r *renderer) resolveExtendChain(name string, slots map[string]string, pos 
 		if err != nil {
 			return "", err
 		}
-		cur = &renderer{source: src, ctx: r.ctx, loader: r.loader, templateName: parent.template, depth: r.depth, fills: r.fills}
+		cur = &renderer{source: src, loader: r.loader, templateName: parent.template, depth: r.depth, fills: r.fills}
 	}
 }
 

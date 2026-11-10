@@ -16,12 +16,7 @@ var (
 	rawCloser      = "</t-raw>"
 	commentCloser  = "</t-comment>"
 	deferredOpener = []string{
-		"<t-let ", "<t-let>",
 		"<t-debug",
-		"<t-for ",
-		"<t-if ", "<t-if>",
-		"<t-else",
-		"<t-elif ",
 	}
 )
 
@@ -40,10 +35,10 @@ type parser struct {
 
 // parse parses source. A source whose first non-whitespace bytes open a
 // t-extend is an extend: its remaining content is only definitions. When the
-// parser meets a construct this port does not yet implement (control flow,
-// let, debug or a transform= attribute) it stops and returns a result marked
-// deferred; Render then keeps the bootstrap behaviour for the whole render.
-// A malformed element met before that is still an error.
+// parser meets a construct this port does not yet implement (debug or a
+// transform= attribute) it stops and returns a result marked deferred;
+// Render then keeps the bootstrap behaviour for the whole render. A
+// malformed element met before that is still an error.
 func parse(source string) (parsedTemplate, error) {
 	p := &parser{source: source}
 	start := len(source) - len(strings.TrimLeft(source, " \t\r\n"))
@@ -150,6 +145,14 @@ func (p *parser) parseContent(start, end int) ([]node, error) {
 		case strings.HasPrefix(rest, includeOpener):
 			n.kind = includeNode
 			n.include, next, err = p.parseInclude(i, end)
+		case hasAnyPrefix(rest, letOpeners):
+			n, next, err = p.parseLet(i, end)
+		case strings.HasPrefix(rest, forOpen):
+			n, next, err = p.parseLoop(i, end)
+		case hasAnyPrefix(rest, ifOpeners):
+			n, next, err = p.parseConditional(i, end)
+		case hasAnyPrefix(rest, strayOpener):
+			return nil, p.errorAt(i, MalformedElement, "stray <t-else> or <t-elif> outside conditional or loop")
 		case hasAnyPrefix(rest, deferredOpener):
 			p.deferred = true
 			return nil, nil

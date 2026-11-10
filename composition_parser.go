@@ -353,23 +353,3 @@ func parseContextBindings(spec string) []contextBinding {
 	}
 	return bindings
 }
-
-// hasBoolAttr reports whether tag has the valueless attribute name: after a
-// space, outside double quotes, and followed by a space, '/', '>' or the end.
-func hasBoolAttr(tag, name string) bool {
-	for i := 0; i < len(tag); i++ {
-		switch {
-		case tag[i] == '"':
-			i++
-			for i < len(tag) && tag[i] != '"' {
-				i++
-			}
-		case tag[i] == ' ' && strings.HasPrefix(tag[i+1:], name):
-			after := i + 1 + len(name)
-			if after >= len(tag) || tag[after] == ' ' || tag[after] == '/' || tag[after] == '>' {
-				return true
-			}
-		}
-	}
-	return false
-}
