@@ -19,6 +19,9 @@ func TestParseNumber(t *testing.T) {
 		{"1_000", 1000}, {"0x10", 16}, {"0X1.8", 1.5},
 		{"0x1p-2", 0.25}, {"1e400", math.Inf(1)}, {"-inf", math.Inf(-1)},
 		{"Infinity", math.Inf(1)}, {"1e", 0}, {".", 0}, {"1,5", 0},
+		// Zig reads one optional sign; a second one is malformed.
+		{"++1", 0}, {"+-1", 0}, {"-+1", 0}, {"--1", 0}, {"+-Inf", 0},
+		{"-+inf", 0}, {"+-0x10", 0}, {"-", 0}, {"+", 0},
 	} {
 		if got := parseNumber(tt.in); got != tt.want {
 			t.Errorf("parseNumber(%q) = %v, want %v", tt.in, got, tt.want)

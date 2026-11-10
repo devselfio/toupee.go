@@ -37,7 +37,8 @@ func parseZigFloat(s string) (float64, bool) {
 		neg = body[0] == '-'
 		body = body[1:]
 	}
-	if body == "" {
+	// Zig consumes one optional sign; strconv would accept a second one.
+	if body == "" || body[0] == '+' || body[0] == '-' {
 		return 0, false
 	}
 	switch strings.ToLower(body) {

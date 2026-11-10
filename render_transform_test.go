@@ -138,6 +138,9 @@ func TestRenderNumericAndDateTransforms(t *testing.T) {
 		{"date names", `<t-var name="when" transform="date:%A %e %B %Y" />`, data, `Monday 1 January 2024`},
 		{"date then escape", `<t-var name="bad" transform="date:%Y" />`, data, `&lt;not a date&gt;`},
 		{"date on t-raw", `<t-raw name="bad" transform="date:%Y" />`, data, `<not a date>`},
+		{"two plus signs are not a number", `<t-var name="s" transform="int" />`, map[string]toupee.Value{"s": str("++1")}, `0`},
+		{"plus then minus is not a number", `<t-var name="s" transform="abs" />`, map[string]toupee.Value{"s": str("+-1")}, `0`},
+		{"plus then minus infinity is not a number", `<t-var name="s" transform="int" />`, map[string]toupee.Value{"s": str("+-Inf")}, `0`},
 	})
 }
 
