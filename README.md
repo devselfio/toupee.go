@@ -85,9 +85,9 @@ format `src/test_runner.zig` reads, not the one Toupee's docs describe:
 `<!-- error-line: N -->`, `<!-- error-column: N -->`,
 `<!-- error-kind: snake_case -->` and `<!-- error-message: TEXT -->` must
 then equal the error's fields exactly. Marker lines are matched after
-trimming spaces, tabs and CR; `in` and `out` bodies lose one leading LF and
-all trailing whitespace, and output is compared byte for byte. JSON
-integers become int64 without passing through float64.
+trimming spaces, tabs and CR; `in`, `in:NAME` and `out` bodies lose one
+leading LF and all trailing whitespace, and output is compared byte for
+byte. JSON integers become int64 without passing through float64.
 
 One deliberate difference: Toupee's runner skips a case whose `out` marker
 is followed by nothing (`slot.test L97`); this runner renders it and
