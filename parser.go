@@ -107,7 +107,11 @@ func (p *parser) parseContent(start, end int) ([]node, error) {
 }
 
 // isBoundTag reports whether rest starts an ordinary opening tag carrying a
-// t-var: or t-attr: attribute binding.
+// t-var: or t-attr: attribute binding. As in upstream's parseBoundTag, a
+// binding starts only where a space at index > 0 is followed by t-var: or
+// t-attr:; any other occurrence (an attribute value such as title="t-var:",
+// or a name such as data-t-var:x) leaves the tag literal. A tag without any
+// binding renders as literal text upstream, so it must not defer here.
 func isBoundTag(rest string) bool {
 	if len(rest) < 2 || rest[1] == '/' || rest[1] == '!' {
 		return false
@@ -117,7 +121,12 @@ func isBoundTag(rest string) bool {
 		return false
 	}
 	tag := rest[:tagEnd+1]
-	return strings.Contains(tag, "t-var:") || strings.Contains(tag, "t-attr:")
+	for i := 1; i+1 < len(tag); i++ {
+		if tag[i] == ' ' && (strings.HasPrefix(tag[i+1:], "t-var:") || strings.HasPrefix(tag[i+1:], "t-attr:")) {
+			return true
+		}
+	}
+	return false
 }
 
 // parseVariable parses the t-var or t-raw element opening at start, within

@@ -198,6 +198,10 @@ func TestRenderDeferredConstructs(t *testing.T) {
 	runRenderCases(t, []renderCase{
 		{"text mentions t-if", `t-if and t-var: are words`, nil, `t-if and t-var: are words`},
 		{"closing tag with t-var: text", `</a t-var:x>`, nil, `</a t-var:x>`},
+		{"attribute value t-var:", `<p title="t-var:">hello</p>`, nil, `<p title="t-var:">hello</p>`},
+		{"attribute value t-attr:", `<p title="t-attr:">hello</p>`, nil, `<p title="t-attr:">hello</p>`},
+		{"attribute name ending t-var:", `<p data-t-var:example="x">hello</p>`, nil, `<p data-t-var:example="x">hello</p>`},
+		{"literal tag beside a variable", `<p title="t-var:"><t-var name="x" /></p>`, map[string]toupee.Value{"x": str("a&b")}, `<p title="t-var:">a&amp;b</p>`},
 		{"value mentions a tag", `<t-raw name="v" />`, map[string]toupee.Value{"v": str(`<t-if>`)}, `<t-if>`},
 	})
 }

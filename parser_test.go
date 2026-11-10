@@ -51,6 +51,8 @@ func TestParseDeferred(t *testing.T) {
 		`a<t-var name="x">b<t-slot /></t-var>`,
 		`<t-var name="x" transform="upper" />`,
 		`<div t-attr:class="c"></div>`,
+		`<a href="/" t-var:title="t">l</a>`,
+		`<p title="t-var:" t-var:id="x">hello</p>`,
 	} {
 		got, err := parse(input)
 		if err != nil || !got.deferred || got.nodes != nil {
@@ -61,6 +63,10 @@ func TestParseDeferred(t *testing.T) {
 		`<t-comment><t-for x in="y"></t-comment>`,
 		`t-if t-var:x`,
 		`<!-- t-var:x -->`,
+		`<p title="t-var:">hello</p>`,
+		`<p title="t-attr:">hello</p>`,
+		`<p data-t-var:example="x">hello</p>`,
+		`<p data-t-attr:example="x">hello</p>`,
 	} {
 		got, err := parse(input)
 		if err != nil || got.deferred {
