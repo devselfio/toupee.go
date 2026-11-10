@@ -12,19 +12,24 @@ import (
 const parkedSlot = "__t_inner_body__"
 
 // maxFillNesting is a backstop for slot fills nested inside one another
-// that never repeat a state, such as a fill that grows a t-let each time it
-// fills itself again. Upstream renders fills at the slot's depth with no
-// bound, so it has no result for such a template; it overflows its stack.
-// Without the backstop the Go process would die the same way. It is far
-// above any finite chain of distinct slots a template could hold.
+// that repeatsFill cannot prove endless: a fill that grows a t-let each
+// time it fills itself again, or one that calls the loader on every pass.
+// Upstream renders fills at the slot's depth with no bound, so it has no
+// result for such a template; it overflows its stack, and without the
+// backstop the Go process would die the same way. Whether a fill ends
+// cannot be decided in general, so any backstop also rejects some finite
+// chains: here, any that nests more than 1000 fills.
 const maxFillNesting = 1000
 
 // activeFill is a slot fill being rendered: the slot's name, the fill's
-// source and the scope the slot was met in. While the fill renders that
-// scope is not written, so it can be compared with a later one.
+// source, the scope the slot was met in, the include depth it renders at
+// and the number of loader calls made before it started. While the fill
+// renders that scope is not written, so it can be compared with a later
+// one.
 type activeFill struct {
 	name, source string
 	ctx          *renderContext
+	depth, loads int
 }
 
 // renderTemplate parses source, the template name, and renders it in ctx
@@ -40,7 +45,7 @@ func (r *renderer) renderTemplate(source, name string, ctx *renderContext, depth
 	if tmpl.deferred {
 		return "", errDeferred
 	}
-	child := &renderer{source: source, loader: r.loader, templateName: name, depth: depth, fills: r.fills}
+	child := &renderer{source: source, loader: r.loader, loads: r.loads, templateName: name, depth: depth, fills: r.fills}
 	return child.renderNodes(tmpl.nodes, ctx)
 }
 
@@ -52,6 +57,7 @@ func (r *renderer) loadTemplate(name string, pos int) (string, error) {
 	if r.loader == nil {
 		return "", errorAt(r.source, pos, TemplateNotFound, name)
 	}
+	*r.loads++
 	src, err := r.loader(name)
 	if err != nil {
 		var re *RenderError
@@ -146,11 +152,14 @@ func (r *renderer) renderInclude(inc include, ctx *renderContext, out *bytes.Buf
 // empty. An anonymous slot whose fill replaced a parked one sees the parked
 // fill as its own anonymous slot.
 //
-// A fill renders at the slot's include depth, as upstream's does, so a
-// finite chain of fills of any length renders. Meeting the same slot with
-// the same fill in a scope equal to one a fill around it started from can
-// only repeat forever; that is a CircularReference at the slot, with the
-// slot name as its message.
+// A fill renders at the slot's include depth, as upstream's does, and is
+// not counted against maxDepth. Meeting the same slot with the same fill,
+// at the same depth, in a scope equal to one a fill around it started from,
+// with no loader call since, can only repeat forever; that is a
+// CircularReference at the slot, with the slot name as its message. So is
+// starting a fill inside maxFillNesting others, even if the chain would
+// have ended: that backstop is what keeps an endless fill from overflowing
+// the stack.
 func (r *renderer) renderSlot(s slot, ctx *renderContext, out *bytes.Buffer) error {
 	indent := insertionIndent(out)
 	fill, ok := ctx.slots[s.name]
@@ -181,8 +190,8 @@ func (r *renderer) renderSlot(s slot, ctx *renderContext, out *bytes.Buffer) err
 		child.slots[""] = parked
 		delete(child.slots, parkedSlot)
 	}
-	fills := append(r.fills[:len(r.fills):len(r.fills)], activeFill{name: s.name, source: fill, ctx: ctx})
-	fr := &renderer{source: fill, loader: r.loader, templateName: r.templateName, depth: r.depth, fills: fills}
+	fills := append(r.fills[:len(r.fills):len(r.fills)], activeFill{name: s.name, source: fill, ctx: ctx, depth: r.depth, loads: *r.loads})
+	fr := &renderer{source: fill, loader: r.loader, loads: r.loads, templateName: r.templateName, depth: r.depth, fills: fills}
 	rendered, err := fr.renderNodes(tmpl.nodes, child)
 	if err != nil {
 		return err
@@ -192,11 +201,14 @@ func (r *renderer) renderSlot(s slot, ctx *renderContext, out *bytes.Buffer) err
 }
 
 // repeatsFill reports whether a fill around r is rendering the slot name
-// with fill from a scope equal to ctx. Rendering is deterministic in those
-// three, so the fill would meet this slot again in the same state forever.
+// with fill, at r's include depth, from a scope equal to ctx, and no loader
+// call has been made since that fill started. Rendering from that state
+// reads nothing else, so it would meet this slot again in the same state
+// forever. A loader call in between breaks the argument: a Loader may
+// return different content each time, so that is not reported as a cycle.
 func (r *renderer) repeatsFill(name, fill string, ctx *renderContext) bool {
 	for _, f := range r.fills {
-		if f.name == name && f.source == fill &&
+		if f.name == name && f.source == fill && f.depth == r.depth && f.loads == *r.loads &&
 			maps.Equal(f.ctx.attrs, ctx.attrs) && maps.Equal(f.ctx.slots, ctx.slots) &&
 			reflect.DeepEqual(f.ctx.data, ctx.data) {
 			return true
@@ -234,7 +246,7 @@ func (r *renderer) resolveExtendChain(name string, slots map[string]string, pos 
 	if err != nil {
 		return "", err
 	}
-	cur := &renderer{source: src, loader: r.loader, templateName: name, depth: r.depth, fills: r.fills}
+	cur := &renderer{source: src, loader: r.loader, loads: r.loads, templateName: name, depth: r.depth, fills: r.fills}
 	for {
 		tmpl, err := parse(cur.source)
 		if err != nil {
@@ -264,7 +276,7 @@ func (r *renderer) resolveExtendChain(name string, slots map[string]string, pos 
 		if err != nil {
 			return "", err
 		}
-		cur = &renderer{source: src, loader: r.loader, templateName: parent.template, depth: r.depth, fills: r.fills}
+		cur = &renderer{source: src, loader: r.loader, loads: r.loads, templateName: parent.template, depth: r.depth, fills: r.fills}
 	}
 }
 

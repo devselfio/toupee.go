@@ -18,10 +18,13 @@ var errDeferred = errors.New("toupee: deferred construct")
 // renderer renders the parsed nodes of one template. source is the text
 // those nodes were parsed from, so errors are located in it; templateName
 // is its name, "" for the input. depth counts the includes above it. fills
-// holds the slot fills being rendered around it, innermost last.
+// holds the slot fills being rendered around it, innermost last. loads
+// counts the loader calls made so far by the whole Render call; every
+// renderer of one call shares it.
 type renderer struct {
 	source       string
 	loader       Loader
+	loads        *int
 	templateName string
 	depth        int
 	fills        []activeFill

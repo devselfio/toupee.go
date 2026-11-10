@@ -55,7 +55,7 @@ func Render(input string, ctx Context, loader Loader) (string, error) {
 	if tmpl.deferred {
 		return "", nil
 	}
-	r := &renderer{source: input, loader: loader}
+	r := &renderer{source: input, loader: loader, loads: new(int)}
 	out, err := r.renderNodes(tmpl.nodes, newRenderContext(ctx))
 	if errors.Is(err, errDeferred) {
 		return "", nil

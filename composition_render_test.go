@@ -271,3 +271,52 @@ func TestCompositionEndlessFills(t *testing.T) {
 		})
 	}
 }
+
+// TestCompositionLoaderDependentFills shows that meeting the same slot with
+// the same fill in an equal scope is not a cycle when the loader was called
+// in between: a loader may return different content on a later call, so
+// the fill below stops on the third load and renders "done".
+func TestCompositionLoaderDependentFills(t *testing.T) {
+	fill := `<t-let name="stop"><t-include template="step" /></t-let><t-if var="stop" equals=""><t-slot name="x" /></t-if><t-var name="stop" />`
+	loads := 0
+	loader := func(name string) (string, error) {
+		loads++
+		if loads < 3 {
+			return "", nil
+		}
+		return "done", nil
+	}
+	got, err := toupee.Render(`<t-slot name="x" />`, toupee.Context{Slots: map[string]string{"x": fill}}, loader)
+	if got != "done" || err != nil || loads != 3 {
+		t.Errorf("Render = %q, %v after %d loads; want \"done\", nil after 3", got, err, loads)
+	}
+
+	// A loader that keeps returning the same content still ends: the
+	// include depth bound or the fill backstop stops it, never the process.
+	loads = 0
+	same := func(string) (string, error) { loads++; return "", nil }
+	got, err = toupee.Render(`<t-slot name="x" />`, toupee.Context{Slots: map[string]string{"x": fill}}, same)
+	var re *toupee.RenderError
+	if got != "" || !errors.As(err, &re) || re.Kind != toupee.CircularReference || re.Message != "x" {
+		t.Errorf("endless loader-dependent fill = %q, %v; want \"\" and CircularReference x", got, err)
+	}
+}
+
+// TestCompositionFillBackstop pins the documented limit on nested fills:
+// a chain of maxFillNesting (1000) distinct fills renders, one more is a
+// CircularReference at the slot that would start fill 1001.
+func TestCompositionFillBackstop(t *testing.T) {
+	chain := func(n int) map[string]string {
+		slots := map[string]string{fmt.Sprintf("s%d", n-1): "done"}
+		for i := 0; i < n-1; i++ {
+			slots[fmt.Sprintf("s%d", i)] = fmt.Sprintf(`<t-slot name="s%d" />`, i+1)
+		}
+		return slots
+	}
+	got, err := toupee.Render(`<t-slot name="s0" />`, toupee.Context{Slots: chain(1000)}, nil)
+	if got != "done" || err != nil {
+		t.Errorf("1000-fill chain = %q, %v; want \"done\", nil", got, err)
+	}
+	got, err = toupee.Render(`<t-slot name="s0" />`, toupee.Context{Slots: chain(1001)}, nil)
+	wantRenderError(t, got, err, toupee.RenderError{Line: 1, Column: 1, Kind: toupee.CircularReference, Message: "s1000"})
+}
