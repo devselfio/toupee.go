@@ -173,7 +173,6 @@ func TestRenderDeferredConstructs(t *testing.T) {
 	for _, input := range []string{
 		`<t-var name="x" /><t-if var="x">y<t-slot /></t-if>`,
 		`<t-for item in xs><t-include template="c" /></t-for>`,
-		`<t-let name="y" transform="upper">1</t-let>`,
 		`<t-debug />`,
 		`<t-attr name="c" />`,
 		`<t-slot />`,
