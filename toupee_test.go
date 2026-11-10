@@ -37,7 +37,7 @@ func TestRenderEmpty(t *testing.T) {
 		},
 		{
 			name:   "deferred construct keeps the bootstrap result",
-			input:  `<t-include template="card" />`,
+			input:  `<t-if var="x">y</t-if>`,
 			ctx:    toupee.Context{},
 			loader: loader,
 			want:   "",

@@ -48,11 +48,12 @@ func TestParseNodes(t *testing.T) {
 func TestParseDeferred(t *testing.T) {
 	for _, input := range []string{
 		`<t-for x in="y"></t-for>`,
-		`a<t-var name="x">b<t-slot /></t-var>`,
+		`a<t-var name="x">b<t-if var="y">c</t-if></t-var>`,
 		`<t-var name="x" transform="upper" />`,
-		`<div t-attr:class="c"></div>`,
-		`<a href="/" t-var:title="t">l</a>`,
-		`<p title="t-var:" t-var:id="x">hello</p>`,
+		`<t-include template="c"><t-define name="a"><t-let name="b">c</t-let></t-define></t-include>`,
+		`<t-include template="c"><t-debug /></t-include>`,
+		`<t-extend template="c"><t-define><t-else /></t-define>`,
+		`<t-slot><t-for x in="y"></t-for></t-slot>`,
 	} {
 		got, err := parse(input)
 		if err != nil || !got.deferred || got.nodes != nil {
@@ -67,6 +68,11 @@ func TestParseDeferred(t *testing.T) {
 		`<p title="t-attr:">hello</p>`,
 		`<p data-t-var:example="x">hello</p>`,
 		`<p data-t-attr:example="x">hello</p>`,
+		`a<t-var name="x">b<t-slot /></t-var>`,
+		`<div t-attr:class="c"></div>`,
+		`<a href="/" t-var:title="t">l</a>`,
+		`<t-include template="c" /><t-attr name="a" />`,
+		` <t-extend template="c">`,
 	} {
 		got, err := parse(input)
 		if err != nil || got.deferred {

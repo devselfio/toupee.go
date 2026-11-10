@@ -6,14 +6,23 @@ type nodeKind uint8
 const (
 	textNode nodeKind = iota
 	variableNode
+	attrOutputNode
+	slotNode
+	includeNode
+	extendNode
+	boundTagNode
 )
 
-// node is one element of a parsed template: literal text or a variable.
-// Comments produce no node.
+// node is one element of a parsed template. Comments produce no node.
 type node struct {
-	kind     nodeKind
-	text     string
-	variable variable
+	kind       nodeKind
+	text       string
+	variable   variable
+	attrOutput attrOutput
+	slot       slot
+	include    include
+	extension  extension
+	boundTag   boundTag
 }
 
 // variable is a t-var (escaped) or t-raw (raw) element.

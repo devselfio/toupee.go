@@ -1,28 +1,59 @@
 package toupee
 
-import "strings"
+import (
+	"bytes"
+	"errors"
+)
 
-// renderer renders parsed nodes against one call's Context. It only reads
-// the Context.
+// maxDepth bounds nested includes, and separately nested slot fills, as
+// upstream's default max_depth does.
+const maxDepth = 50
+
+// errDeferred reports that a template loaded or a slot fill parsed during
+// rendering uses a construct this port does not implement yet. Render turns
+// it into the bootstrap result for the whole call.
+var errDeferred = errors.New("toupee: deferred construct")
+
+// renderer renders the parsed nodes of one template. source is the text
+// those nodes were parsed from, so errors are located in it; templateName
+// is its name, "" for the input. ctx belongs to this template: it is a copy
+// the caller's maps are never reached through. depth counts the includes
+// above it and fills the slot fills.
 type renderer struct {
-	source string
-	ctx    Context
+	source       string
+	ctx          Context
+	loader       Loader
+	templateName string
+	depth        int
+	fills        int
 }
 
 // renderNodes renders nodes in order.
 func (r *renderer) renderNodes(nodes []node) (string, error) {
-	var b strings.Builder
+	var b bytes.Buffer
 	for _, n := range nodes {
+		var s string
+		var err error
 		switch n.kind {
 		case textNode:
-			b.WriteString(n.text)
+			s = n.text
 		case variableNode:
-			s, err := r.renderVariable(n.variable)
-			if err != nil {
-				return "", err
-			}
-			b.WriteString(s)
+			s, err = r.renderVariable(n.variable)
+		case attrOutputNode:
+			s = r.renderAttrOutput(n.attrOutput)
+		case boundTagNode:
+			s, err = r.renderBoundTag(n.boundTag)
+		case extendNode:
+			s, err = r.renderExtend(n.extension)
+		case slotNode:
+			err = r.renderSlot(n.slot, &b)
+		case includeNode:
+			err = r.renderInclude(n.include, &b)
 		}
+		if err != nil {
+			return "", err
+		}
+		b.WriteString(s)
 	}
 	return b.String(), nil
 }
