@@ -12,15 +12,10 @@ var (
 	rawCloser      = "</t-raw>"
 	commentCloser  = "</t-comment>"
 	deferredOpener = []string{
-		"<t-let ", "<t-let>",
 		"<t-debug",
 		"<t-attr ", "<t-attr/>",
 		"<t-slot",
 		"<t-include ",
-		"<t-for ",
-		"<t-if ", "<t-if>",
-		"<t-else",
-		"<t-elif ",
 		"<t-extend ", "<t-extend>",
 		"<t-define",
 	}
@@ -34,7 +29,7 @@ type parser struct {
 }
 
 // parse parses source. When it meets a construct this port does not yet
-// implement (control flow, let, debug, attributes, slots, composition, a
+// implement (debug, attributes, slots, composition, a
 // transform= attribute, or a t-var:/t-attr: binding on an ordinary tag) it
 // stops and returns a result marked deferred; Render then keeps the
 // bootstrap behaviour for the whole input. A malformed supported element met
@@ -95,6 +90,29 @@ func (p *parser) parseContent(start, end int) ([]node, error) {
 				return nil, err
 			}
 			i, textStart = next, next
+		case hasAnyPrefix(rest, letOpeners), strings.HasPrefix(rest, forOpen), hasAnyPrefix(rest, ifOpeners):
+			flush(i)
+			var n node
+			var next int
+			var err error
+			switch {
+			case hasAnyPrefix(rest, letOpeners):
+				n, next, err = p.parseLet(i, end)
+			case strings.HasPrefix(rest, forOpen):
+				n, next, err = p.parseLoop(i, end)
+			default:
+				n, next, err = p.parseConditional(i, end)
+			}
+			if err != nil {
+				return nil, err
+			}
+			if p.deferred {
+				return nil, nil
+			}
+			nodes = append(nodes, n)
+			i, textStart = next, next
+		case hasAnyPrefix(rest, strayOpener):
+			return nil, errorAt(p.source, i, MalformedElement, "stray <t-else> or <t-elif> outside conditional or loop")
 		case hasAnyPrefix(rest, deferredOpener), isBoundTag(rest):
 			p.deferred = true
 			return nil, nil

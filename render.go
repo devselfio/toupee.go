@@ -2,27 +2,73 @@ package toupee
 
 import "strings"
 
-// renderer renders parsed nodes against one call's Context. It only reads
-// the Context.
+// renderer renders parsed nodes for one Render call.
 type renderer struct {
 	source string
-	ctx    Context
 }
 
-// renderNodes renders nodes in order.
-func (r *renderer) renderNodes(nodes []node) (string, error) {
+// renderContext is the scope nodes render in. data is owned by the render:
+// Render starts from a shallow copy of the caller's Data, each loop
+// iteration from a shallow copy of its parent's, and t-let writes into the
+// scope it runs in. attrs and slots are only read.
+type renderContext struct {
+	data  map[string]Value
+	attrs map[string]string
+	slots map[string]string
+}
+
+// newRenderContext returns a render-owned scope for the caller's ctx. The
+// caller's maps are never written.
+func newRenderContext(ctx Context) *renderContext {
+	return &renderContext{data: cloneData(ctx.Data), attrs: ctx.Attrs, slots: ctx.Slots}
+}
+
+// cloneRenderContext returns a child scope: a shallow copy of parent's
+// top-level data, sharing its attrs and slots.
+func cloneRenderContext(parent *renderContext) *renderContext {
+	return &renderContext{data: cloneData(parent.data), attrs: parent.attrs, slots: parent.slots}
+}
+
+func cloneData(data map[string]Value) map[string]Value {
+	out := make(map[string]Value, len(data)+2)
+	for k, v := range data {
+		out[k] = v
+	}
+	return out
+}
+
+// publicContext is the read-only view resolve takes.
+func (c *renderContext) publicContext() Context {
+	return Context{Data: c.data, Attrs: c.attrs, Slots: c.slots}
+}
+
+// lookup resolves path in c's data, as resolve does.
+func (c *renderContext) lookup(path string) (Value, bool) {
+	return resolve(c.publicContext(), path)
+}
+
+// renderNodes renders nodes in order in ctx.
+func (r *renderer) renderNodes(nodes []node, ctx *renderContext) (string, error) {
 	var b strings.Builder
 	for _, n := range nodes {
+		var s string
+		var err error
 		switch n.kind {
 		case textNode:
-			b.WriteString(n.text)
+			s = n.text
 		case variableNode:
-			s, err := r.renderVariable(n.variable)
-			if err != nil {
-				return "", err
-			}
-			b.WriteString(s)
+			s, err = r.renderVariable(n.variable, ctx)
+		case conditionalNode:
+			s, err = r.renderConditional(n.conditional, ctx)
+		case loopNode:
+			s, err = r.renderLoop(n.loop, ctx)
+		case letNode:
+			err = r.renderLet(n.let, ctx)
 		}
+		if err != nil {
+			return "", err
+		}
+		b.WriteString(s)
 	}
 	return b.String(), nil
 }
@@ -31,9 +77,9 @@ func (r *renderer) renderNodes(nodes []node) (string, error) {
 // its explicit body, even an empty one. With neither it is an
 // UndefinedVariable error whose message is the requested path. A t-var
 // escapes whichever it renders; a t-raw does not.
-func (r *renderer) renderVariable(v variable) (string, error) {
+func (r *renderer) renderVariable(v variable, ctx *renderContext) (string, error) {
 	var value string
-	val, ok := resolve(r.ctx, v.name)
+	val, ok := ctx.lookup(v.name)
 	if ok {
 		value, ok = scalarString(val)
 	}
@@ -42,7 +88,7 @@ func (r *renderer) renderVariable(v variable) (string, error) {
 			return "", errorAt(r.source, v.pos, UndefinedVariable, v.name)
 		}
 		var err error
-		if value, err = r.renderNodes(v.body); err != nil {
+		if value, err = r.renderNodes(v.body, ctx); err != nil {
 			return "", err
 		}
 	}

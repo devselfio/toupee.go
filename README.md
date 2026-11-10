@@ -5,8 +5,9 @@ template engine, measured case by case against Toupee's own spec corpus.
 
     import "github.com/devselfio/toupee.go" // package toupee
 
-**Status: variables, raw output and comments.** `Render` implements literal
-text and HTML, `t-var`, `t-raw` and `t-comment`:
+**Status: variables, raw output, comments, conditionals, loops and let.**
+`Render` implements literal text and HTML, `t-var`, `t-raw`, `t-comment`,
+`t-if`/`t-elif`/`t-else`, `t-for` and `t-let`:
 
 - **Paths.** `name="a.b.0"` follows map keys and decimal list indices from
   `Data`; a segment `$(expr)` is replaced by the scalar `expr` resolves to
@@ -28,14 +29,46 @@ text and HTML, `t-var`, `t-raw` and `t-comment`:
   undefined variable an `UndefinedVariable` error, each at the line and
   column of the element's `<`, counted in bytes. A failing `Render` returns
   `""` and the error, never partial output.
+- **Conditionals.** `<t-if var="a.b" equals="x">…<t-elif … />…<t-else />…</t-if>`
+  renders the first branch whose condition holds, else the else body.
+  The subject is the first of `var`, `attr` and `slot`; with none it is
+  the existence of the root. The test is the first of `equals`,
+  `not-equals`, `contains`, `starts-with`, `ends-with`, `matches` (a
+  whole-string, byte-wise `*`/`?` glob), then the flags `not-exists`,
+  `truthy`, `not-truthy`, else existence. A present variable exists even
+  when nil, false, zero or empty; it compares by its text, nil, lists and
+  maps as `""`. A missing variable is never an error in a condition: it
+  fails every positive test and passes `not-exists`, `not-truthy` and
+  `not-equals`. Truthy is a nonempty string, list or map, `true` or a
+  nonzero number. An attr is truthy when nonempty; a slot condition tests
+  presence only. Every branch is parsed, whichever renders.
+- **Loops.** `<t-for item in path as loop sort="f" order="desc"
+  offset="1" limit="2">…<t-else />…</t-for>` iterates a list, or the list
+  under a map's `items` key. It copies the items, sorts them by the
+  string at `f` (bytewise; a missing or non-string key sorts as `""`;
+  equal keys keep their order; `order="desc"` reverses), skips `offset`,
+  then keeps `limit`. The alias holds `index`, `number` and `length` of
+  that window as decimal strings, and `first`/`last` as `"true"` only on
+  those iterations. A missing or non-iterable collection, or an empty
+  window, renders the else body. `limit` and `offset` are read as Zig's
+  `parseInt` reads an unsigned decimal (a leading `+`, `_` between
+  digits and `-0` are accepted); anything else, or a value over
+  2^64-1, is a `MalformedElement`.
+- **Let.** `<t-let name="n">…</t-let>` renders its body and stores the
+  string under the literal top-level key `n`, emitting nothing and
+  replacing any earlier value; a later `t-var` escapes it, `t-raw` does
+  not.
+- **Scope.** A conditional renders in its parent's scope, so a `t-let`
+  inside it is visible afterwards. Each loop iteration starts from a fresh
+  copy of the parent scope, so its item, alias and lets end with the
+  iteration. Bindings never reach the caller's `Context`.
 
 The other elements are not implemented yet. Until each is, an input that
-uses control flow (`t-if`, `t-elif`, `t-else`, `t-for`), `t-let`,
-`t-debug`, `t-attr`, `t-slot`, composition (`t-include`, `t-extend`,
-`t-define`), a `transform=` attribute or a `t-var:`/`t-attr:` binding on an
-ordinary tag renders as `"", nil`, as the bootstrap did. This is a
-temporary measure, not Toupee's semantics. `Render` does not yet call the
-loader.
+uses `t-debug`, `t-attr`, `t-slot`, composition (`t-include`,
+`t-extend`, `t-define`), a `transform=` attribute (on `t-let` too) or a
+`t-var:`/`t-attr:` binding on an ordinary tag renders as `"", nil`, as the
+bootstrap did. This is a temporary measure, not Toupee's semantics.
+`Render` does not yet call the loader.
 
 ## API
 
@@ -144,9 +177,9 @@ Subtests are `TestSpec/<file without .test>/L<line>`, so
 still validated against the whole corpus, so a filtered run does not call
 real entries stale. An unfiltered run logs the measurement:
 
-    corpus: 120 of 519 cases pass
+    corpus: 275 of 519 cases pass
 
-399 cases are on the list.
+244 cases are on the list.
 A filtered run reports its selected count instead.
 
 **A drift check.** `make spec-drift` runs `cmd/driftcheck`. It checks the
