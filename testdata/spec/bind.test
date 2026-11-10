@@ -1,0 +1,90 @@
+<!-- test: t-var: binds variable to attribute -->
+<!-- in -->
+<a t-var:href="url">link</a>
+<!-- context -->
+{"data": {"url": "/about"}}
+<!-- out -->
+<a href="/about">link</a>
+
+<!-- test: t-var: missing variable omits attribute -->
+<!-- in -->
+<a t-var:href="url">link</a>
+<!-- out -->
+<a>link</a>
+
+<!-- test: t-var: escapes value -->
+<!-- in -->
+<a t-var:href="url">link</a>
+<!-- context -->
+{"data": {"url": "/search?q=a&b=c"}}
+<!-- out -->
+<a href="/search?q=a&amp;b=c">link</a>
+
+<!-- test: t-attr: binds include attribute -->
+<!-- in:comp.html -->
+<div t-attr:class="variant">content</div>
+<!-- in -->
+<t-include template="comp.html" variant="primary" />
+<!-- context -->
+<!-- out -->
+<div class="primary">content</div>
+
+<!-- test: t-attr: missing attribute omits -->
+<!-- in:comp.html -->
+<div t-attr:class="variant">content</div>
+<!-- in -->
+<t-include template="comp.html" />
+<!-- context -->
+<!-- out -->
+<div>content</div>
+
+<!-- test: multiple bindings on one tag -->
+<!-- in -->
+<a t-var:href="url" t-var:title="label">link</a>
+<!-- context -->
+{"data": {"url": "/about", "label": "About Us"}}
+<!-- out -->
+<a href="/about" title="About Us">link</a>
+
+<!-- test: mixed var and attr bindings -->
+<!-- in:comp.html -->
+<a t-var:href="url" t-attr:class="style">link</a>
+<!-- in -->
+<t-include template="comp.html" style="fancy" />
+<!-- context -->
+{"data": {"url": "/home"}}
+<!-- out -->
+<a href="/home" class="fancy">link</a>
+
+<!-- test: bind with dotted path -->
+<!-- in -->
+<a t-var:href="page.url">link</a>
+<!-- context -->
+{"data": {"page": {"url": "/about"}}}
+<!-- out -->
+<a href="/about">link</a>
+
+<!-- test: bind with empty string value -->
+<!-- in -->
+<div t-var:class="cls">content</div>
+<!-- context -->
+{"data": {"cls": ""}}
+<!-- out -->
+<div class="">content</div>
+
+<!-- test: bind preserves other attributes -->
+<!-- in -->
+<a href="/static" t-var:title="tip">link</a>
+<!-- context -->
+{"data": {"tip": "hover text"}}
+<!-- out -->
+<a href="/static" title="hover text">link</a>
+
+<!-- test: t-attr default when missing -->
+<!-- in:comp.html -->
+<div t-attr:class="variant">content</div>
+<!-- in -->
+<t-include template="comp.html" />
+<!-- context -->
+<!-- out -->
+<div>content</div>

@@ -1,0 +1,520 @@
+<!-- test: if var exists - true -->
+<!-- in -->
+<t-if var="x">yes</t-if>
+<!-- context -->
+{"data": {"x": "hello"}}
+<!-- out -->
+yes
+
+<!-- test: if var exists - false -->
+<!-- in -->
+<t-if var="x">yes</t-if>
+<!-- out -->
+
+<!-- test: if var exists with empty string - strict true -->
+<!-- in -->
+<t-if var="x">yes</t-if>
+<!-- context -->
+{"data": {"x": ""}}
+<!-- out -->
+yes
+
+<!-- test: if var equals - true -->
+<!-- in -->
+<t-if var="x" equals="hello">match</t-if>
+<!-- context -->
+{"data": {"x": "hello"}}
+<!-- out -->
+match
+
+<!-- test: if var equals - false -->
+<!-- in -->
+<t-if var="x" equals="hello">match</t-if>
+<!-- context -->
+{"data": {"x": "world"}}
+<!-- out -->
+
+<!-- test: if var not-equals - true -->
+<!-- in -->
+<t-if var="x" not-equals="hello">different</t-if>
+<!-- context -->
+{"data": {"x": "world"}}
+<!-- out -->
+different
+
+<!-- test: if var not-equals - false -->
+<!-- in -->
+<t-if var="x" not-equals="hello">different</t-if>
+<!-- context -->
+{"data": {"x": "hello"}}
+<!-- out -->
+
+<!-- test: if var not-equals missing is true -->
+<!-- in -->
+<t-if var="x" not-equals="hello">different</t-if>
+<!-- out -->
+different
+
+<!-- test: if var not-exists - true when missing -->
+<!-- in -->
+<t-if var="x" not-exists>missing</t-if>
+<!-- out -->
+missing
+
+<!-- test: if var not-exists - false when present -->
+<!-- in -->
+<t-if var="x" not-exists>missing</t-if>
+<!-- context -->
+{"data": {"x": "hello"}}
+<!-- out -->
+
+<!-- test: if var not-exists with empty string - strict false -->
+<!-- in -->
+<t-if var="x" not-exists>missing</t-if>
+<!-- context -->
+{"data": {"x": ""}}
+<!-- out -->
+
+<!-- test: if-else -->
+<!-- in -->
+<t-if var="x">yes<t-else />no</t-if>
+<!-- out -->
+no
+
+<!-- test: if-else with true condition -->
+<!-- in -->
+<t-if var="x">yes<t-else />no</t-if>
+<!-- context -->
+{"data": {"x": "1"}}
+<!-- out -->
+yes
+
+<!-- test: if-elif-else -->
+<!-- in -->
+<t-if var="a">A<t-elif var="b" />B<t-else />C</t-if>
+<!-- context -->
+{"data": {"b": "yes"}}
+<!-- out -->
+B
+
+<!-- test: if-elif-else fallthrough -->
+<!-- in -->
+<t-if var="a">A<t-elif var="b" />B<t-else />C</t-if>
+<!-- out -->
+C
+
+<!-- test: if attr exists -->
+<!-- in:comp.html -->
+<t-if attr="variant">styled<t-else />plain</t-if>
+<!-- in -->
+<t-include template="comp.html" variant="primary" />
+<!-- context -->
+<!-- out -->
+styled
+
+<!-- test: if attr missing -->
+<!-- in:comp.html -->
+<t-if attr="variant">styled<t-else />plain</t-if>
+<!-- in -->
+<t-include template="comp.html" />
+<!-- context -->
+<!-- out -->
+plain
+
+<!-- test: if slot exists -->
+<!-- in:layout.html -->
+<t-if slot="sidebar">has-sidebar</t-if>
+<!-- in -->
+<t-extend template="layout.html">
+<t-define name="sidebar">content</t-define>
+<!-- context -->
+<!-- out -->
+has-sidebar
+
+<!-- test: if slot not-exists -->
+<!-- in:layout.html -->
+<t-if slot="sidebar" not-exists>no-sidebar</t-if>
+<!-- in -->
+<t-extend template="layout.html">
+<t-define name="">main</t-define>
+<!-- context -->
+<!-- out -->
+no-sidebar
+
+<!-- test: nested if -->
+<!-- in -->
+<t-if var="a"><t-if var="b">both</t-if></t-if>
+<!-- context -->
+{"data": {"a": "1", "b": "2"}}
+<!-- out -->
+both
+
+<!-- test: orphan else is error -->
+<!-- in -->
+<t-else />
+<!-- error: MalformedElement -->
+
+<!-- test: orphan elif is error -->
+<!-- in -->
+<t-elif var="x" />
+<!-- error: MalformedElement -->
+
+<!-- test: if with boolean true -->
+<!-- in -->
+<t-if var="flag">yes</t-if>
+<!-- context -->
+{"data": {"flag": true}}
+<!-- out -->
+yes
+
+<!-- test: if with boolean false still exists -->
+<!-- in -->
+<t-if var="flag">exists<t-else />missing</t-if>
+<!-- context -->
+{"data": {"flag": false}}
+<!-- out -->
+exists
+
+<!-- test: if with boolean true -->
+<!-- in -->
+<t-if var="flag">exists</t-if>
+<!-- context -->
+{"data": {"flag": true}}
+<!-- out -->
+exists
+
+<!-- test: if with dotted path -->
+<!-- in -->
+<t-if var="page.active">active</t-if>
+<!-- context -->
+{"data": {"page": {"active": "yes"}}}
+<!-- out -->
+active
+
+<!-- test: if with dotted path missing -->
+<!-- in -->
+<t-if var="page.active">active<t-else />inactive</t-if>
+<!-- context -->
+{"data": {"page": {}}}
+<!-- out -->
+inactive
+
+<!-- test: multiple elif branches -->
+<!-- in -->
+<t-if var="a">A<t-elif var="b" />B<t-elif var="c" />C<t-elif var="d" />D<t-else />none</t-if>
+<!-- context -->
+{"data": {"c": "yes"}}
+<!-- out -->
+C
+
+<!-- test: multiple elif all false -->
+<!-- in -->
+<t-if var="a">A<t-elif var="b" />B<t-elif var="c" />C<t-else />none</t-if>
+<!-- out -->
+none
+
+<!-- test: if equals with dotted path -->
+<!-- in -->
+<t-if var="page.type" equals="post">blog<t-else />page</t-if>
+<!-- context -->
+{"data": {"page": {"type": "post"}}}
+<!-- out -->
+blog
+
+<!-- test: nested if-else combination -->
+<!-- in -->
+<t-if var="a"><t-if var="b">both<t-else />only-a</t-if><t-else />neither</t-if>
+<!-- context -->
+{"data": {"a": "1"}}
+<!-- out -->
+only-a
+
+<!-- test: if with content between branches -->
+<!-- in -->
+<t-if var="x">before<t-else />after</t-if>
+<!-- context -->
+{"data": {"x": "yes"}}
+<!-- out -->
+before
+
+<!-- test: contains match -->
+<!-- in -->
+<t-if var="text" contains="world">found</t-if>
+<!-- context -->
+{"data": {"text": "hello world"}}
+<!-- out -->
+found
+
+<!-- test: contains no match -->
+<!-- in -->
+<t-if var="text" contains="xyz">found<t-else />not found</t-if>
+<!-- context -->
+{"data": {"text": "hello world"}}
+<!-- out -->
+not found
+
+<!-- test: starts-with match -->
+<!-- in -->
+<t-if var="path" starts-with="/blog">blog<t-else />other</t-if>
+<!-- context -->
+{"data": {"path": "/blog/my-post"}}
+<!-- out -->
+blog
+
+<!-- test: starts-with no match -->
+<!-- in -->
+<t-if var="path" starts-with="/blog">blog<t-else />other</t-if>
+<!-- context -->
+{"data": {"path": "/about"}}
+<!-- out -->
+other
+
+<!-- test: ends-with match -->
+<!-- in -->
+<t-if var="file" ends-with=".html">html<t-else />other</t-if>
+<!-- context -->
+{"data": {"file": "page.html"}}
+<!-- out -->
+html
+
+<!-- test: ends-with no match -->
+<!-- in -->
+<t-if var="file" ends-with=".html">html<t-else />other</t-if>
+<!-- context -->
+{"data": {"file": "style.css"}}
+<!-- out -->
+other
+
+<!-- test: matches glob with star -->
+<!-- in -->
+<t-if var="path" matches="/blog/*">blog post<t-else />other</t-if>
+<!-- context -->
+{"data": {"path": "/blog/my-post"}}
+<!-- out -->
+blog post
+
+<!-- test: matches glob no match -->
+<!-- in -->
+<t-if var="path" matches="/blog/*">blog<t-else />other</t-if>
+<!-- context -->
+{"data": {"path": "/about"}}
+<!-- out -->
+other
+
+<!-- test: matches glob with question mark -->
+<!-- in -->
+<t-if var="code" matches="v?.0">major<t-else />other</t-if>
+<!-- context -->
+{"data": {"code": "v2.0"}}
+<!-- out -->
+major
+
+<!-- test: contains with missing variable -->
+<!-- in -->
+<t-if var="text" contains="x">found<t-else />missing</t-if>
+<!-- context -->
+{"data": {}}
+<!-- out -->
+missing
+
+<!-- test: truthy - non-empty string -->
+<!-- in -->
+<t-if var="x" truthy>yes<t-else />no</t-if>
+<!-- context -->
+{"data": {"x": "hello"}}
+<!-- out -->
+yes
+
+<!-- test: truthy - empty string is falsy -->
+<!-- in -->
+<t-if var="x" truthy>yes<t-else />no</t-if>
+<!-- context -->
+{"data": {"x": ""}}
+<!-- out -->
+no
+
+<!-- test: truthy - boolean true -->
+<!-- in -->
+<t-if var="flag" truthy>yes<t-else />no</t-if>
+<!-- context -->
+{"data": {"flag": true}}
+<!-- out -->
+yes
+
+<!-- test: truthy - boolean false is falsy -->
+<!-- in -->
+<t-if var="flag" truthy>yes<t-else />no</t-if>
+<!-- context -->
+{"data": {"flag": false}}
+<!-- out -->
+no
+
+<!-- test: truthy - integer zero is falsy -->
+<!-- in -->
+<t-if var="count" truthy>yes<t-else />no</t-if>
+<!-- context -->
+{"data": {"count": 0}}
+<!-- out -->
+no
+
+<!-- test: truthy - non-zero integer -->
+<!-- in -->
+<t-if var="count" truthy>yes<t-else />no</t-if>
+<!-- context -->
+{"data": {"count": 42}}
+<!-- out -->
+yes
+
+<!-- test: truthy - missing variable is falsy -->
+<!-- in -->
+<t-if var="x" truthy>yes<t-else />no</t-if>
+<!-- context -->
+{"data": {}}
+<!-- out -->
+no
+
+<!-- test: not-truthy - boolean false -->
+<!-- in -->
+<t-if var="flag" not-truthy>falsy<t-else />truthy</t-if>
+<!-- context -->
+{"data": {"flag": false}}
+<!-- out -->
+falsy
+
+<!-- test: not-truthy - non-empty string is truthy -->
+<!-- in -->
+<t-if var="x" not-truthy>falsy<t-else />truthy</t-if>
+<!-- context -->
+{"data": {"x": "hello"}}
+<!-- out -->
+truthy
+
+<!-- test: not-truthy - missing variable -->
+<!-- in -->
+<t-if var="x" not-truthy>falsy<t-else />truthy</t-if>
+<!-- context -->
+{"data": {}}
+<!-- out -->
+falsy
+
+<!-- test: truthy with attr - non-empty -->
+<!-- in:comp.html -->
+<t-if attr="variant" truthy>styled<t-else />plain</t-if>
+<!-- in -->
+<t-include template="comp.html" variant="primary" />
+<!-- context -->
+<!-- out -->
+styled
+
+<!-- test: truthy with attr - empty string is falsy -->
+<!-- in:comp.html -->
+<t-if attr="variant" truthy>styled<t-else />plain</t-if>
+<!-- in -->
+<t-include template="comp.html" variant="" />
+<!-- context -->
+<!-- out -->
+plain
+
+<!-- test: truthy - non-empty list -->
+<!-- in -->
+<t-if var="items" truthy>yes<t-else />no</t-if>
+<!-- context -->
+{"data": {"items": [1, 2]}}
+<!-- out -->
+yes
+
+<!-- test: truthy - empty list is falsy -->
+<!-- in -->
+<t-if var="items" truthy>yes<t-else />no</t-if>
+<!-- context -->
+{"data": {"items": []}}
+<!-- out -->
+no
+
+<!-- test: truthy - non-empty map -->
+<!-- in -->
+<t-if var="meta" truthy>yes<t-else />no</t-if>
+<!-- context -->
+{"data": {"meta": {"key": "val"}}}
+<!-- out -->
+yes
+
+<!-- test: truthy - empty map is falsy -->
+<!-- in -->
+<t-if var="meta" truthy>yes<t-else />no</t-if>
+<!-- context -->
+{"data": {"meta": {}}}
+<!-- out -->
+no
+
+<!-- test: truthy - null is falsy -->
+<!-- in -->
+<t-if var="x" truthy>yes<t-else />no</t-if>
+<!-- context -->
+{"data": {"x": null}}
+<!-- out -->
+no
+
+<!-- test: truthy - non-zero float -->
+<!-- in -->
+<t-if var="ratio" truthy>yes<t-else />no</t-if>
+<!-- context -->
+{"data": {"ratio": 3.14}}
+<!-- out -->
+yes
+
+<!-- test: truthy - zero float is falsy -->
+<!-- in -->
+<t-if var="ratio" truthy>yes<t-else />no</t-if>
+<!-- context -->
+{"data": {"ratio": 0.0}}
+<!-- out -->
+no
+
+<!-- test: not-truthy - non-empty list is truthy -->
+<!-- in -->
+<t-if var="items" not-truthy>falsy<t-else />truthy</t-if>
+<!-- context -->
+{"data": {"items": [1]}}
+<!-- out -->
+truthy
+
+<!-- test: not-truthy - empty list -->
+<!-- in -->
+<t-if var="items" not-truthy>falsy<t-else />truthy</t-if>
+<!-- context -->
+{"data": {"items": []}}
+<!-- out -->
+falsy
+
+<!-- test: not-truthy - empty map -->
+<!-- in -->
+<t-if var="meta" not-truthy>falsy<t-else />truthy</t-if>
+<!-- context -->
+{"data": {"meta": {}}}
+<!-- out -->
+falsy
+
+<!-- test: not-truthy - null -->
+<!-- in -->
+<t-if var="x" not-truthy>falsy<t-else />truthy</t-if>
+<!-- context -->
+{"data": {"x": null}}
+<!-- out -->
+falsy
+
+<!-- test: not-truthy - zero float -->
+<!-- in -->
+<t-if var="ratio" not-truthy>falsy<t-else />truthy</t-if>
+<!-- context -->
+{"data": {"ratio": 0.0}}
+<!-- out -->
+falsy
+
+<!-- test: not-truthy - non-zero float is truthy -->
+<!-- in -->
+<t-if var="ratio" not-truthy>falsy<t-else />truthy</t-if>
+<!-- context -->
+{"data": {"ratio": 1.5}}
+<!-- out -->
+truthy

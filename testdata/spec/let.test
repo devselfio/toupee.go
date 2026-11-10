@@ -1,0 +1,76 @@
+<!-- test: basic let captures body -->
+<!-- in -->
+<t-let name="greeting">Hello</t-let><t-var name="greeting" />
+<!-- out -->
+Hello
+
+<!-- test: let captures rendered content -->
+<!-- in -->
+<t-let name="msg"><t-var name="x" /> world</t-let><t-var name="msg" />
+<!-- context -->
+{"data": {"x": "Hello"}}
+<!-- out -->
+Hello world
+
+<!-- test: let with transform -->
+<!-- in -->
+<t-let name="slug" transform="slugify">Hello World</t-let><t-var name="slug" />
+<!-- out -->
+hello-world
+
+<!-- test: let overwrites existing var -->
+<!-- in -->
+<t-let name="x">new</t-let><t-var name="x" />
+<!-- context -->
+{"data": {"x": "old"}}
+<!-- out -->
+new
+
+<!-- test: let used in subsequent template -->
+<!-- in -->
+<t-let name="a">1</t-let><t-let name="b">2</t-let><t-var name="a" />+<t-var name="b" />
+<!-- out -->
+1+2
+
+<!-- test: let scope does not leak to caller -->
+<!-- in:comp.html -->
+<t-let name="local">inner</t-let><t-var name="local" />
+<!-- in -->
+<t-include template="comp.html" /><t-if var="local">leaked</t-if>
+<!-- context -->
+<!-- out -->
+inner
+
+<!-- test: let with chained transforms -->
+<!-- in -->
+<t-let name="result" transform="trim|upper|slugify">  Hello World!  </t-let><t-var name="result" />
+<!-- out -->
+hello-world
+
+<!-- test: let capturing loop output -->
+<!-- in -->
+<t-let name="list"><t-for item in items><t-var name="item.name" />,</t-for></t-let>List: <t-var name="list" />
+<!-- context -->
+{"data": {"items": [{"name": "A"}, {"name": "B"}]}}
+<!-- out -->
+List: A,B,
+
+<!-- test: let capturing conditional output -->
+<!-- in -->
+<t-let name="msg"><t-if var="x">yes<t-else />no</t-if></t-let><t-var name="msg" />
+<!-- context -->
+{"data": {"x": "1"}}
+<!-- out -->
+yes
+
+<!-- test: let with empty body -->
+<!-- in -->
+<t-let name="empty"></t-let>[<t-var name="empty" />]
+<!-- out -->
+[]
+
+<!-- test: let overrides for subsequent use -->
+<!-- in -->
+<t-let name="x">first</t-let><t-var name="x" /> <t-let name="x">second</t-let><t-var name="x" />
+<!-- out -->
+first second
