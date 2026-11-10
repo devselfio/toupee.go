@@ -51,6 +51,11 @@ func TestParseCompositionErrors(t *testing.T) {
 		{"<t-extend template=\"a\">\n<t-define name=\"b\"", "unclosed <t-define> tag", 2, 1},
 		{"<t-include template=\"a\">\n    <t-define name=\"b\">\n        <p><t-var name=\"x\"</p>\n    </t-define>\n</t-include>", "missing closing tag", 3, 12},
 		{"<t-include template=\"a\">\n    <p>\n    <t-var name=\"x\">\n</t-include>", "missing closing tag", 3, 5},
+		// #12's control-flow errors inside stripped bodies are located in
+		// the original source too.
+		{"<t-include template=\"a\">\n    <t-define name=\"b\">\n        <p><t-if var=\"x\">y</p>\n    </t-define>\n</t-include>", "missing closing </t-if> tag", 3, 12},
+		{"<t-include template=\"a\">\n      x <t-for item=\"i\">y\n</t-include>", "missing item variable in <t-for>", 2, 9},
+		{"<t-extend template=\"a\">\n<t-define name=\"b\">\n  x <t-let name=\"n\">1\n</t-define>", "missing closing </t-let> tag", 3, 5},
 	} {
 		_, err := parse(tt.input)
 		var re *RenderError
