@@ -4,16 +4,19 @@
 // Render implements literal text and HTML, t-var, t-raw and t-comment:
 // static and dynamic ($(expr)) data paths, the rendering of every Value
 // kind, default bodies, HTML escaping, and MalformedElement and
-// UndefinedVariable errors with their source line and column. A
-// transform="a|b:arg" attribute on t-var or t-raw runs Toupee's built-in
-// string, escaping and list transforms on the value before escaping; the
-// numeric, boolean and date transforms are not implemented yet.
+// UndefinedVariable errors with their source line and column. It also
+// implements t-if, t-elif and t-else with every condition Toupee defines,
+// t-for with sorting, offset, limit, alias metadata and an else body, and
+// t-let captures, scoped as Toupee scopes them. A transform="a|b:arg"
+// attribute on t-var or t-raw runs Toupee's built-in string, escaping and
+// list transforms on the value before escaping; the numeric, boolean and
+// date transforms are not implemented yet.
 //
 // The other elements are not implemented yet. Until each is, an input that
-// uses control flow (t-if, t-elif, t-else, t-for), t-let, t-debug, t-attr,
-// t-slot, composition (t-include, t-extend, t-define) or a t-var:/t-attr:
-// binding on an ordinary tag renders as "", nil, as the bootstrap did.
-// This is temporary, not Toupee semantics.
+// uses t-debug, t-attr, t-slot, composition (t-include, t-extend,
+// t-define), a transform= attribute on t-let or a t-var:/t-attr: binding
+// on an ordinary tag renders as "", nil, as the bootstrap did. This is
+// temporary, not Toupee semantics.
 package toupee
 
 // Context is the state a template renders against. The zero Context means
@@ -45,8 +48,8 @@ func Render(input string, ctx Context, loader Loader) (string, error) {
 	if tmpl.deferred {
 		return "", nil
 	}
-	r := &renderer{source: input, ctx: ctx}
-	out, err := r.renderNodes(tmpl.nodes)
+	r := &renderer{source: input}
+	out, err := r.renderNodes(tmpl.nodes, newRenderContext(ctx))
 	if err != nil {
 		return "", err
 	}

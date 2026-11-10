@@ -103,7 +103,7 @@ func TestRenderLeavesCallerStateAndLoaderAlone(t *testing.T) {
 		if got != "" || !errors.As(err, &re) || re.Kind != toupee.MalformedElement {
 			t.Fatalf("run %d: Render = %q, %v; want \"\" and MalformedElement", i, got, err)
 		}
-		got, err = toupee.Render(`<t-var name="title" /><t-if condition="n">x</t-if>`, ctx, loader)
+		got, err = toupee.Render(`<t-var name="title" /><t-if var="n"><t-include template="x" /></t-if>`, ctx, loader)
 		if got != "" || err != nil {
 			t.Fatalf("run %d: deferred Render = %q, %v; want \"\", nil", i, got, err)
 		}

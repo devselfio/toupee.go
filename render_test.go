@@ -171,20 +171,15 @@ func TestRenderErrors(t *testing.T) {
 func TestRenderDeferredConstructs(t *testing.T) {
 	data := map[string]toupee.Value{"x": str("X")}
 	for _, input := range []string{
-		`<t-var name="x" /><t-if condition="x">y</t-if>`,
-		`<t-if>`,
-		`<t-for item in="x"></t-for>`,
-		`<t-let name="y">1</t-let>`,
+		`<t-var name="x" /><t-if var="x">y<t-slot /></t-if>`,
+		`<t-for item in xs><t-include template="c" /></t-for>`,
+		`<t-let name="y" transform="upper">1</t-let>`,
 		`<t-debug />`,
 		`<t-attr name="c" />`,
 		`<t-slot />`,
 		`<t-include template="c" />`,
 		`<t-extend template="c">`,
 		`<t-define name="c"></t-define>`,
-		`<t-else>`,
-		`<t-elif condition="x">`,
-		`<t-let name="y" transform="upper">1</t-let>`,
-		`<t-var name="x" transform="upper" /><t-if condition="x">y</t-if>`,
 		`<a t-var:href="x">l</a>`,
 		`<a t-attr:class="x">l</a>`,
 		`<t-var name="x" /><t-var name="undefined" /><t-slot />`,
