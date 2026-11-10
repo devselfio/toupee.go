@@ -7,7 +7,8 @@ import (
 
 // maxDepth bounds nested includes, as upstream's default max_depth does.
 // Slot fills render at the depth of the slot that asks for them, as
-// upstream renders them; see maxFillNesting for their own backstop.
+// upstream renders them, and have no count limit of their own; see
+// renderSlot for the repeats that are reported.
 const maxDepth = 50
 
 // errDeferred reports that a template loaded or a slot fill parsed during

@@ -62,11 +62,13 @@ bindings, and the `transform=` attribute on `t-var` and `t-raw`:
   is `TemplateNotFound` with the name as message, at the element that named
   it; other loader errors are returned unchanged. A repeated definition is
   `DuplicateSlotDefinition` at its second opener; an extend chain that
-  revisits a template, includes nested more than 50 deep, a slot fill
+  revisits a template, includes nested more than 50 deep, and a slot fill
   that reaches its own slot again in the same state with no loader call
-  in between, and a fill nested inside 1000 others, are
-  `CircularReference`. A failing `Render` returns `""` and the error, never
-  partial output.
+  in between are `CircularReference`. A failing `Render` returns `""` and
+  the error, never partial output. Slot fills have no nesting limit of
+  their own: a chain of fills that ends renders however deep it goes. A
+  fill that never ends but changes its scope or calls the loader each time
+  is not detected, so `Render` gives no termination guarantee for it.
 - **Conditionals.** `<t-if var="a.b" equals="x">…<t-elif … />…<t-else />…</t-if>`
   renders the first branch whose condition holds, else the else body.
   The subject is the first of `var`, `attr` and `slot`; with none it is

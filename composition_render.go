@@ -11,16 +11,6 @@ import (
 // the replacement's own anonymous slot can render it.
 const parkedSlot = "__t_inner_body__"
 
-// maxFillNesting is a backstop for slot fills nested inside one another
-// that repeatsFill cannot prove endless: a fill that grows a t-let each
-// time it fills itself again, or one that calls the loader on every pass.
-// Upstream renders fills at the slot's depth with no bound, so it has no
-// result for such a template; it overflows its stack, and without the
-// backstop the Go process would die the same way. Whether a fill ends
-// cannot be decided in general, so any backstop also rejects some finite
-// chains: here, any that nests more than 1000 fills.
-const maxFillNesting = 1000
-
 // activeFill is a slot fill being rendered: the slot's name, the fill's
 // source, the scope the slot was met in, the include depth it renders at
 // and the number of loader calls made before it started. While the fill
@@ -156,10 +146,11 @@ func (r *renderer) renderInclude(inc include, ctx *renderContext, out *bytes.Buf
 // not counted against maxDepth. Meeting the same slot with the same fill,
 // at the same depth, in a scope equal to one a fill around it started from,
 // with no loader call since, can only repeat forever; that is a
-// CircularReference at the slot, with the slot name as its message. So is
-// starting a fill inside maxFillNesting others, even if the chain would
-// have ended: that backstop is what keeps an endless fill from overflowing
-// the stack.
+// CircularReference at the slot, with the slot name as its message. No
+// other fill is rejected, however deep fills nest: a chain that ends
+// renders. A fill that never ends but never repeats such a state, because
+// its scope changes or it calls the loader each time, is not detected, and
+// Render does not promise to return for it.
 func (r *renderer) renderSlot(s slot, ctx *renderContext, out *bytes.Buffer) error {
 	indent := insertionIndent(out)
 	fill, ok := ctx.slots[s.name]
@@ -174,7 +165,7 @@ func (r *renderer) renderSlot(s slot, ctx *renderContext, out *bytes.Buffer) err
 		appendIndented(out, rendered, indent)
 		return nil
 	}
-	if r.repeatsFill(s.name, fill, ctx) || len(r.fills) >= maxFillNesting {
+	if r.repeatsFill(s.name, fill, ctx) {
 		return errorAt(r.source, s.pos, CircularReference, s.name)
 	}
 	tmpl, err := parse(fill)
