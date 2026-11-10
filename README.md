@@ -5,8 +5,9 @@ template engine, measured case by case against Toupee's own spec corpus.
 
     import "github.com/devselfio/toupee.go" // package toupee
 
-**Status: variables, raw output and comments.** `Render` implements literal
-text and HTML, `t-var`, `t-raw` and `t-comment`:
+**Status: variables, raw output, comments and string transforms.** `Render`
+implements literal text and HTML, `t-var`, `t-raw` and `t-comment`, and
+the `transform=` attribute on `t-var` and `t-raw`:
 
 - **Paths.** `name="a.b.0"` follows map keys and decimal list indices from
   `Data`; a segment `$(expr)` is replaced by the scalar `expr` resolves to
@@ -18,6 +19,19 @@ text and HTML, `t-var`, `t-raw` and `t-comment`:
   Otherwise a block element's body is rendered, even an empty one; a
   self-closing element is an `UndefinedVariable` error whose `Message` is
   the requested path.
+- **Transforms.** `transform="a|b:arg"` runs a chain of built-ins left to
+  right on the chosen value or body, before `t-var` escapes it. Steps split
+  on `|` (empty steps skipped) and arguments on `:` (empty ones kept), with
+  no trimming or quoting. A `default` step anywhere in the chain stands in
+  for a missing value, nil, list or map with `""` instead of raising
+  `UndefinedVariable`; a body still comes first. Implemented: `upper`,
+  `lower`, `capitalize`, `trim`, `slugify`, `truncate`, `replace`,
+  `default`, `length`, `escape`, `url_encode`, `url_decode`, `js_escape`,
+  `join`, `split`, `first`, `last`, with Toupee's byte-wise semantics. An
+  unknown name or a bad argument is a `MalformedElement` at the element,
+  raised only when the element renders. `abs`, `floor`, `ceil`, `int`,
+  `float`, `decimal`, `bool` and `date` are not implemented yet and are
+  unknown names for now.
 - **Escaping.** `t-var` escapes its result, a rendered default included,
   mapping exactly `&`, `<`, `>`, `"` and `'` to `&amp;`, `&lt;`, `&gt;`,
   `&quot;` and `&#x27;`; `t-raw` writes it unchanged. Every other byte of
@@ -32,10 +46,9 @@ text and HTML, `t-var`, `t-raw` and `t-comment`:
 The other elements are not implemented yet. Until each is, an input that
 uses control flow (`t-if`, `t-elif`, `t-else`, `t-for`), `t-let`,
 `t-debug`, `t-attr`, `t-slot`, composition (`t-include`, `t-extend`,
-`t-define`), a `transform=` attribute or a `t-var:`/`t-attr:` binding on an
-ordinary tag renders as `"", nil`, as the bootstrap did. This is a
-temporary measure, not Toupee's semantics. `Render` does not yet call the
-loader.
+`t-define`) or a `t-var:`/`t-attr:` binding on an ordinary tag renders as
+`"", nil`, as the bootstrap did. This is a temporary measure, not Toupee's
+semantics. `Render` does not yet call the loader.
 
 ## API
 
@@ -144,9 +157,9 @@ Subtests are `TestSpec/<file without .test>/L<line>`, so
 still validated against the whole corpus, so a filtered run does not call
 real entries stale. An unfiltered run logs the measurement:
 
-    corpus: 120 of 519 cases pass
+    corpus: 207 of 519 cases pass
 
-399 cases are on the list.
+312 cases are on the list.
 A filtered run reports its selected count instead.
 
 **A drift check.** `make spec-drift` runs `cmd/driftcheck`. It checks the
