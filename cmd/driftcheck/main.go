@@ -20,6 +20,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -118,30 +119,40 @@ func archiveURL(repository, ref string) string {
 	return repository + "/archive/" + ref + ".tar.gz"
 }
 
+// respondedTransport notes whether any HTTP response arrived. It sees every
+// response, including a redirect the client then cannot follow (an
+// unparseable Location, say), before the client does anything with it.
+type respondedTransport struct {
+	next      http.RoundTripper
+	responded atomic.Bool
+}
+
+func (t *respondedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.next.RoundTrip(req)
+	if resp != nil {
+		t.responded.Store(true)
+	}
+	return resp, err
+}
+
 // fetchUpstream downloads the archive of ref and returns its corpus.
 func fetchUpstream(client *http.Client, repository, ref string) (map[string][]byte, error) {
 	url := archiveURL(repository, ref)
-	// The client only calls CheckRedirect after an HTTP redirect response
-	// has arrived, so a failure after that call is not offline: a redirect
-	// loop, a refused redirect or an unreachable redirect target must fail
-	// rather than fall back to the record. Wrap a copy of the client so the
-	// caller's policy (Go's default of ten redirects when nil) still applies.
-	responded := false
-	c := *client
-	policy := client.CheckRedirect
-	c.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		responded = true
-		if policy != nil {
-			return policy(req, via)
-		}
-		if len(via) >= 10 {
-			return errors.New("stopped after 10 redirects")
-		}
-		return nil
+	// A failure after any HTTP response has arrived is not offline: a
+	// redirect loop, a refused or unparseable redirect, or an unreachable
+	// redirect target must fail rather than fall back to the record. Wrap
+	// the transport of a copy of the client to observe that; the caller's
+	// redirect policy and timeout are untouched.
+	next := client.Transport
+	if next == nil {
+		next = http.DefaultTransport
 	}
+	rt := &respondedTransport{next: next}
+	c := *client
+	c.Transport = rt
 	resp, err := c.Get(url)
 	if err != nil {
-		if responded {
+		if rt.responded.Load() {
 			return nil, fmt.Errorf("fetching %s: %v", url, err)
 		}
 		return nil, fmt.Errorf("%w: %v", errOffline, err)

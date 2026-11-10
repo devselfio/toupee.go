@@ -438,6 +438,16 @@ func TestRedirectFailures(t *testing.T) {
 			c.CheckRedirect = func(*http.Request, []*http.Request) error { return errors.New("no redirects") }
 			return s.URL, c, n
 		},
+		"redirect with an unparseable Location": func(t *testing.T) (string, *http.Client, *atomic.Int64) {
+			var n atomic.Int64
+			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				n.Add(1)
+				w.Header().Set("Location", "http://%zz/")
+				w.WriteHeader(http.StatusFound)
+			}))
+			t.Cleanup(s.Close)
+			return s.URL, s.Client(), &n
+		},
 		"redirect then no network": func(t *testing.T) (string, *http.Client, *atomic.Int64) {
 			rt := &redirectThenOffline{}
 			return "https://example.invalid/toupee", &http.Client{Transport: rt}, &rt.requests
