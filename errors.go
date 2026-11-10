@@ -35,3 +35,19 @@ func (e *RenderError) Error() string {
 		return fmt.Sprintf("toupee: %s: %s", e.Kind, e.Message)
 	}
 }
+
+// errorAt returns a RenderError for the byte offset pos in source. Lines and
+// columns start at 1; the column restarts only after LF, and every other
+// byte, CR and each byte of a UTF-8 sequence included, advances it.
+func errorAt(source string, pos int, kind ErrorKind, message string) *RenderError {
+	line, col := 1, 1
+	for i := 0; i < pos && i < len(source); i++ {
+		if source[i] == '\n' {
+			line++
+			col = 1
+		} else {
+			col++
+		}
+	}
+	return &RenderError{Line: line, Column: col, Kind: kind, Message: message}
+}

@@ -1,8 +1,16 @@
 // Package toupee is a Go port of the Toupee template engine, measured
 // against Toupee v0.4.0's spec corpus.
 //
-// This is the bootstrap package: it fixes the public render boundary, and
-// Render does not yet implement any template semantics.
+// Render implements literal text and HTML, t-var, t-raw and t-comment:
+// static and dynamic ($(expr)) data paths, the rendering of every Value
+// kind, default bodies, HTML escaping, and MalformedElement and
+// UndefinedVariable errors with their source line and column.
+//
+// The other elements are not implemented yet. Until each is, an input that
+// uses control flow (t-if, t-elif, t-else, t-for), t-let, t-debug, t-attr,
+// t-slot, composition (t-include, t-extend, t-define), a transform=
+// attribute or a t-var:/t-attr: binding on an ordinary tag renders as
+// "", nil, as the bootstrap did. This is temporary, not Toupee semantics.
 package toupee
 
 // Context is the state a template renders against. The zero Context means
@@ -24,8 +32,20 @@ type Loader func(name string) (string, error)
 // loader. It reads its arguments without modifying them and keeps no state
 // between calls. Errors from rendering are *RenderError; use errors.As.
 //
-// Rendering semantics are not implemented yet: this bootstrap Render
-// returns "", nil and does not call loader.
+// On failure Render returns "" and the error, never partial output. It does
+// not call loader yet: no implemented element names a template.
 func Render(input string, ctx Context, loader Loader) (string, error) {
-	return "", nil
+	tmpl, err := parse(input)
+	if err != nil {
+		return "", err
+	}
+	if tmpl.deferred {
+		return "", nil
+	}
+	r := &renderer{source: input, ctx: ctx}
+	out, err := r.renderNodes(tmpl.nodes)
+	if err != nil {
+		return "", err
+	}
+	return out, nil
 }
