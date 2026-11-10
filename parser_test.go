@@ -29,6 +29,27 @@ func TestParseNodes(t *testing.T) {
 		}},
 		{"comment yields no node", "a<t-comment>b</t-comment>c", []node{text("a"), text("c")}},
 		{"quoted > inside tag", `<t-var name="x" t=">" />`, []node{vr(variable{name: "x", pos: 0})}},
+		// transform= is split on '|' (empty steps skipped) and then ':'
+		// (empty arguments kept), with no trimming or case folding.
+		{"transform chain", `<t-var name="x" transform="||upper|replace:o:||" />`, []node{
+			vr(variable{name: "x", pos: 0, transforms: []transformStep{
+				{name: "upper"}, {name: "replace", args: []string{"o", ""}},
+			}}),
+		}},
+		{"transform keeps spaces and case", `<t-raw name="x" transform=" Upper : a |trim">b</t-raw>`, []node{
+			vr(variable{name: "x", raw: true, hasBody: true, pos: 0, body: []node{text("b")}, transforms: []transformStep{
+				{name: " Upper ", args: []string{" a "}}, {name: "trim"},
+			}}),
+		}},
+		{"unknown transform parses", `<t-var name="x" transform="bogus:1" />`, []node{
+			vr(variable{name: "x", pos: 0, transforms: []transformStep{{name: "bogus", args: []string{"1"}}}}),
+		}},
+		{"empty transform attribute", `<t-var transform="" name="x" />`, []node{vr(variable{name: "x", pos: 0})}},
+		{"transform in a body", `<t-var name="m"><t-raw name="x" transform="upper" /></t-var>`, []node{
+			vr(variable{name: "m", hasBody: true, pos: 0, body: []node{
+				vr(variable{name: "x", raw: true, pos: 16, transforms: []transformStep{{name: "upper"}}}),
+			}}),
+		}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := parse(tt.input)
@@ -51,7 +72,7 @@ func TestParseDeferred(t *testing.T) {
 		`<t-if var="y">a<t-elif var="z" /><t-debug /></t-if>`,
 		`<t-let name="y" transform="upper">b</t-let>`,
 		`a<t-var name="x">b<t-slot /></t-var>`,
-		`<t-var name="x" transform="upper" />`,
+		`<t-let name="y" transform="upper">1</t-let>`,
 		`<div t-attr:class="c"></div>`,
 		`<a href="/" t-var:title="t">l</a>`,
 		`<p title="t-var:" t-var:id="x">hello</p>`,

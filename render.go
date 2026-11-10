@@ -1,6 +1,9 @@
 package toupee
 
-import "strings"
+import (
+	"errors"
+	"strings"
+)
 
 // renderer renders parsed nodes for one Render call.
 type renderer struct {
@@ -74,9 +77,11 @@ func (r *renderer) renderNodes(nodes []node, ctx *renderContext) (string, error)
 }
 
 // renderVariable renders v's scalar value, even an empty or zero one, or else
-// its explicit body, even an empty one. With neither it is an
-// UndefinedVariable error whose message is the requested path. A t-var
-// escapes whichever it renders; a t-raw does not.
+// its explicit body, even an empty one. With neither, a default step in its
+// transform chain stands in for the value with ""; without one it is an
+// UndefinedVariable error whose message is the requested path. The chain
+// then runs on whichever was chosen, and a t-var escapes its result; a t-raw
+// does not. A failing step is a MalformedElement at the element.
 func (r *renderer) renderVariable(v variable, ctx *renderContext) (string, error) {
 	var value string
 	val, ok := ctx.lookup(v.name)
@@ -84,13 +89,24 @@ func (r *renderer) renderVariable(v variable, ctx *renderContext) (string, error
 		value, ok = scalarString(val)
 	}
 	if !ok {
-		if !v.hasBody {
+		switch {
+		case v.hasBody:
+			var err error
+			if value, err = r.renderNodes(v.body, ctx); err != nil {
+				return "", err
+			}
+		case hasDefaultTransform(v.transforms):
+		default:
 			return "", errorAt(r.source, v.pos, UndefinedVariable, v.name)
 		}
-		var err error
-		if value, err = r.renderNodes(v.body, ctx); err != nil {
-			return "", err
+	}
+	value, err := applyTransforms(value, v.transforms)
+	if err != nil {
+		var re *RenderError
+		if errors.As(err, &re) {
+			return "", errorAt(r.source, v.pos, re.Kind, re.Message)
 		}
+		return "", err
 	}
 	if v.raw {
 		return value, nil

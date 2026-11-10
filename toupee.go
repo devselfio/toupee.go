@@ -7,13 +7,16 @@
 // UndefinedVariable errors with their source line and column. It also
 // implements t-if, t-elif and t-else with every condition Toupee defines,
 // t-for with sorting, offset, limit, alias metadata and an else body, and
-// t-let captures, scoped as Toupee scopes them.
+// t-let captures, scoped as Toupee scopes them. A transform="a|b:arg"
+// attribute on t-var or t-raw runs Toupee's built-in string, escaping and
+// list transforms on the value before escaping; the numeric, boolean and
+// date transforms are not implemented yet.
 //
 // The other elements are not implemented yet. Until each is, an input that
 // uses t-debug, t-attr, t-slot, composition (t-include, t-extend,
-// t-define), a transform= attribute or a t-var:/t-attr: binding on an
-// ordinary tag renders as "", nil, as the bootstrap did. This is temporary,
-// not Toupee semantics.
+// t-define), a transform= attribute on t-let or a t-var:/t-attr: binding
+// on an ordinary tag renders as "", nil, as the bootstrap did. This is
+// temporary, not Toupee semantics.
 package toupee
 
 // Context is the state a template renders against. The zero Context means

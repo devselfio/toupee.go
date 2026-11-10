@@ -30,6 +30,8 @@ type variable struct {
 	hasBody bool // false for a self-closing tag; true for a block, even an empty one
 	raw     bool
 	pos     int // absolute opening '<' byte offset in the original source
+	// transforms is the parsed transform= chain, nil when absent or empty.
+	transforms []transformStep
 }
 
 // parsedTemplate is a parse result. deferred reports that the source uses a
