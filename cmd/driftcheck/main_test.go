@@ -395,6 +395,102 @@ func TestOnlineFailures(t *testing.T) {
 	}
 }
 
+// redirectThenOffline answers the archive request with a redirect and then
+// fails the redirected request as if the network were gone, without dialing.
+type redirectThenOffline struct{ requests atomic.Int64 }
+
+func (rt *redirectThenOffline) RoundTrip(req *http.Request) (*http.Response, error) {
+	rt.requests.Add(1)
+	if strings.HasPrefix(req.URL.Path, "/toupee/archive/") {
+		return &http.Response{
+			StatusCode: http.StatusFound,
+			Status:     "302 Found",
+			Header:     http.Header{"Location": {"/elsewhere"}},
+			Body:       http.NoBody,
+			Request:    req,
+		}, nil
+	}
+	return nil, errors.New("dial tcp: no network")
+}
+
+// A redirect is an HTTP response, so a fetch that fails after one is not
+// offline: the check, recording and measurement all fail with exit 2 instead
+// of falling back to the record. A redirect that ends in the archive still
+// counts as online.
+func TestRedirectFailures(t *testing.T) {
+	loop := func(t *testing.T) (*httptest.Server, *atomic.Int64) {
+		var n atomic.Int64
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			n.Add(1)
+			http.Redirect(w, r, "/loop", http.StatusFound)
+		}))
+		t.Cleanup(s.Close)
+		return s, &n
+	}
+	clients := map[string]func(t *testing.T) (string, *http.Client, *atomic.Int64){
+		"redirect loop": func(t *testing.T) (string, *http.Client, *atomic.Int64) {
+			s, n := loop(t)
+			return s.URL, s.Client(), n
+		},
+		"redirect refused by the client": func(t *testing.T) (string, *http.Client, *atomic.Int64) {
+			s, n := loop(t)
+			c := s.Client()
+			c.CheckRedirect = func(*http.Request, []*http.Request) error { return errors.New("no redirects") }
+			return s.URL, c, n
+		},
+		"redirect then no network": func(t *testing.T) (string, *http.Client, *atomic.Int64) {
+			rt := &redirectThenOffline{}
+			return "https://example.invalid/toupee", &http.Client{Transport: rt}, &rt.requests
+		},
+	}
+	modes := map[string][]string{
+		"check":   nil,
+		"record":  {"-record"},
+		"measure": {"main"},
+	}
+	for cname, mk := range clients {
+		for mname, args := range modes {
+			t.Run(cname+"/"+mname, func(t *testing.T) {
+				url, client, n := mk(t)
+				recordRef := "v0.4.0"
+				if mname == "record" {
+					recordRef = ""
+				}
+				dir := setup(t, url, "v0.4.0", recordRef, baseFiles)
+				r := runReadOnly(t, dir, client, args...)
+				if r.code != 2 {
+					t.Errorf("exit %d, want 2\n%s%s", r.code, r.stdout, r.stderr)
+				}
+				if strings.Contains(r.stderr, "offline") {
+					t.Errorf("a fetch that got a redirect was reported as offline: %q", r.stderr)
+				}
+				if n.Load() == 0 {
+					t.Errorf("no request reached the server")
+				}
+			})
+		}
+	}
+	t.Run("followed redirect", func(t *testing.T) {
+		up := newUpstream(t, map[string]response{"v0.4.0": ok(corpusArchive(t, baseFiles))})
+		front := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, up.URL+r.URL.Path, http.StatusFound)
+		}))
+		t.Cleanup(front.Close)
+		dir := setup(t, front.URL, "v0.4.0", "v0.4.0", baseFiles)
+		r := runReadOnly(t, dir, front.Client())
+		if r.code != 0 || !strings.Contains(r.stdout, "matches Toupee at v0.4.0") {
+			t.Errorf("exit %d\n%s%s", r.code, r.stdout, r.stderr)
+		}
+	})
+	t.Run("offline before any response", func(t *testing.T) {
+		dir := setup(t, "https://example.invalid/toupee", "v0.4.0", "v0.4.0", baseFiles)
+		r := runReadOnly(t, dir, offlineClient)
+		if r.code != 0 || !strings.Contains(r.stderr, "offline") {
+			t.Errorf("exit %d, stderr %q", r.code, r.stderr)
+		}
+	})
+}
+
 func TestReadCorpusTarFiltering(t *testing.T) {
 	archive := tarGz(t, []tarEntry{
 		{name: "toupee-x/", typeflag: tar.TypeDir},

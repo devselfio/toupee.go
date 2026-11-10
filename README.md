@@ -125,8 +125,9 @@ A filtered run reports its selected count instead.
 local files against `SHA256SUMS`, which must record the pinned tag, and,
 when the network answers, against Toupee's `test/` at that tag. Without a
 network (no HTTP response at all) it says so and the record alone decides;
-an HTTP error or a corrupt archive fails. `go run ./cmd/driftcheck -record`
-rewrites `SHA256SUMS` only after the local files match the tag upstream;
+an HTTP error, a failed redirect or a corrupt archive fails.
+`go run ./cmd/driftcheck -record` rewrites `SHA256SUMS` only after the
+local files match the tag upstream;
 `go run ./cmd/driftcheck main` measures another ref without moving the pin.
 Exit status: 0 match, 1 difference, 2 unable to check. See
 `testdata/spec/ORIGIN.md` for moving the pin.

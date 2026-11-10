@@ -121,8 +121,29 @@ func archiveURL(repository, ref string) string {
 // fetchUpstream downloads the archive of ref and returns its corpus.
 func fetchUpstream(client *http.Client, repository, ref string) (map[string][]byte, error) {
 	url := archiveURL(repository, ref)
-	resp, err := client.Get(url)
+	// The client only calls CheckRedirect after an HTTP redirect response
+	// has arrived, so a failure after that call is not offline: a redirect
+	// loop, a refused redirect or an unreachable redirect target must fail
+	// rather than fall back to the record. Wrap a copy of the client so the
+	// caller's policy (Go's default of ten redirects when nil) still applies.
+	responded := false
+	c := *client
+	policy := client.CheckRedirect
+	c.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		responded = true
+		if policy != nil {
+			return policy(req, via)
+		}
+		if len(via) >= 10 {
+			return errors.New("stopped after 10 redirects")
+		}
+		return nil
+	}
+	resp, err := c.Get(url)
 	if err != nil {
+		if responded {
+			return nil, fmt.Errorf("fetching %s: %v", url, err)
+		}
 		return nil, fmt.Errorf("%w: %v", errOffline, err)
 	}
 	defer resp.Body.Close()
