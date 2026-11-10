@@ -1,0 +1,128 @@
+<!-- test: two-level extend -->
+<!-- in:base.html -->
+<html><body><t-slot /></body></html>
+<!-- in -->
+<t-extend template="base.html">
+<t-define name="">
+<p>Content</p>
+</t-define>
+<!-- context -->
+<!-- out -->
+<html><body><p>Content</p></body></html>
+
+<!-- test: default slot body parked for inner t-slot in anonymous define -->
+<!-- in:base.html -->
+<html><body><t-slot /></body></html>
+<!-- in -->
+<t-extend template="base.html">
+<t-define>
+<div class="wrap"><t-slot /></div>
+</t-define>
+<!-- context -->
+{"slots":{"":"<p>Page</p>"}}
+<!-- out -->
+<html><body><div class="wrap"><p>Page</p></div></body></html>
+
+<!-- test: three-level extend with named slots -->
+<!-- in:base.html -->
+<html><t-slot name="content" /></html>
+<!-- in:page.html -->
+<t-extend template="base.html">
+<t-define name="content"><body><t-slot name="page-body" /></body></t-define>
+<!-- in -->
+<t-extend template="page.html">
+<t-define name="page-body"><p>Deep</p></t-define>
+<!-- context -->
+<!-- out -->
+<html><body><p>Deep</p></body></html>
+
+<!-- test: extend with variables -->
+<!-- in:base.html -->
+<html><head><title><t-var name="page.title" /></title></head><body><t-slot /></body></html>
+<!-- in -->
+<t-extend template="base.html">
+<t-define name="">
+<p>Hello</p>
+</t-define>
+<!-- context -->
+{"data": {"page": {"title": "Test Page"}}}
+<!-- out -->
+<html><head><title>Test Page</title></head><body><p>Hello</p></body></html>
+
+<!-- test: extend missing template is error -->
+<!-- in -->
+<t-extend template="nonexistent.html">
+<t-define name="">content</t-define>
+<!-- error: TemplateNotFound -->
+
+<!-- test: extend circular reference is error -->
+<!-- in:a.html -->
+<t-extend template="b.html">
+<t-define name="">A</t-define>
+<!-- in:b.html -->
+<t-extend template="a.html">
+<t-define name="">B</t-define>
+<!-- in -->
+<t-extend template="a.html">
+<t-define name="">start</t-define>
+<!-- error: CircularReference -->
+
+<!-- test: extend with named slots -->
+<!-- in:layout.html -->
+<head><t-slot name="head" /></head><body><t-slot /></body>
+<!-- in -->
+<t-extend template="layout.html">
+<t-define name="head"><title>My Page</title></t-define>
+<t-define name="">
+<p>Body</p>
+</t-define>
+<!-- context -->
+<!-- out -->
+<head><title>My Page</title></head><body><p>Body</p></body>
+
+<!-- test: three-level chain with vars -->
+<!-- in:base.html -->
+<html><t-slot name="body" /></html>
+<!-- in:page.html -->
+<t-extend template="base.html">
+<t-define name="body"><body><t-slot name="content" /></body></t-define>
+<!-- in -->
+<t-extend template="page.html">
+<t-define name="content"><p><t-var name="title" /></p></t-define>
+<!-- context -->
+{"data": {"title": "Hello"}}
+<!-- out -->
+<html><body><p>Hello</p></body></html>
+
+<!-- test: extend with conditional slot content -->
+<!-- in:base.html -->
+<div><t-slot /></div>
+<!-- in -->
+<t-extend template="base.html">
+<t-define name=""><t-if var="show">visible<t-else />hidden</t-if></t-define>
+<!-- context -->
+<!-- out -->
+<div>hidden</div>
+
+<!-- test: extend with loop in slot -->
+<!-- in:base.html -->
+<ul><t-slot /></ul>
+<!-- in -->
+<t-extend template="base.html">
+<t-define name=""><t-for item in items><li><t-var name="item.name" /></li></t-for></t-define>
+<!-- context -->
+{"data": {"items": [{"name": "A"}, {"name": "B"}]}}
+<!-- out -->
+<ul><li>A</li><li>B</li></ul>
+
+<!-- test: extend with include in slot -->
+<!-- in:base.html -->
+<div><t-slot /></div>
+<!-- in:tag.html -->
+<span><t-attr name="label" /></span>
+<!-- in -->
+<t-extend template="base.html">
+<t-define name=""><t-include template="tag.html" label="hello" /></t-define>
+<!-- context -->
+<!-- out -->
+<div><span>hello</span></div>

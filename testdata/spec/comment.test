@@ -1,0 +1,52 @@
+<!-- test: self-closing comment stripped -->
+<!-- in -->
+before<t-comment />after
+<!-- out -->
+beforeafter
+
+<!-- test: block comment stripped -->
+<!-- in -->
+before<t-comment>this is hidden</t-comment>after
+<!-- out -->
+beforeafter
+
+<!-- test: comment with nested template tags -->
+<!-- in -->
+before<t-comment><t-var name="x" /><t-if var="y">stuff</t-if></t-comment>after
+<!-- out -->
+beforeafter
+
+<!-- test: multiple comments -->
+<!-- in -->
+a<t-comment />b<t-comment>hidden</t-comment>c
+<!-- out -->
+abc
+
+<!-- test: comment preserves surrounding content -->
+<!-- in -->
+<p>Hello</p><t-comment>secret</t-comment><p>World</p>
+<!-- out -->
+<p>Hello</p><p>World</p>
+
+<!-- test: comment inside for loop -->
+<!-- in -->
+<t-for item in items><t-comment>debug: item</t-comment><t-var name="item.name" />,</t-for>
+<!-- context -->
+{"data": {"items": [{"name": "A"}, {"name": "B"}]}}
+<!-- out -->
+A,B,
+
+<!-- test: comment inside include -->
+<!-- in:comp.html -->
+<t-comment>component header</t-comment><p>content</p>
+<!-- in -->
+<t-include template="comp.html" />
+<!-- context -->
+<!-- out -->
+<p>content</p>
+
+<!-- test: empty comment -->
+<!-- in -->
+before<t-comment></t-comment>after
+<!-- out -->
+beforeafter

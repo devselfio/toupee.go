@@ -1,0 +1,168 @@
+<!-- test: basic variable substitution -->
+<!-- in -->
+<p><t-var name="title" /></p>
+<!-- context -->
+{"data": {"title": "Home"}}
+<!-- out -->
+<p>Home</p>
+
+<!-- test: missing variable is error -->
+<!-- in -->
+<p><t-var name="title" /></p>
+<!-- error: UndefinedVariable -->
+
+<!-- test: html escaping -->
+<!-- in -->
+<p><t-var name="title" /></p>
+<!-- context -->
+{"data": {"title": "Tom & Jerry"}}
+<!-- out -->
+<p>Tom &amp; Jerry</p>
+
+<!-- test: all html entities escaped -->
+<!-- in -->
+<p><t-var name="v" /></p>
+<!-- context -->
+{"data": {"v": "<b>\"bold\"</b>"}}
+<!-- out -->
+<p>&lt;b&gt;&quot;bold&quot;&lt;/b&gt;</p>
+
+<!-- test: dotted path variable -->
+<!-- in -->
+<p><t-var name="site.title" /></p>
+<!-- context -->
+{"data": {"site": {"title": "QuiteClose"}}}
+<!-- out -->
+<p>QuiteClose</p>
+
+<!-- test: deeply dotted path -->
+<!-- in -->
+<p><t-var name="data.site.title" /></p>
+<!-- context -->
+{"data": {"data": {"site": {"title": "QuiteClose"}}}}
+<!-- out -->
+<p>QuiteClose</p>
+
+<!-- test: default body used when missing -->
+<!-- in -->
+<p><t-var name="title">Fallback</t-var></p>
+<!-- out -->
+<p>Fallback</p>
+
+<!-- test: default body not used when exists -->
+<!-- in -->
+<p><t-var name="title">Fallback</t-var></p>
+<!-- context -->
+{"data": {"title": "Real Title"}}
+<!-- out -->
+<p>Real Title</p>
+
+<!-- test: default body with nested var -->
+<!-- in -->
+<p><t-var name="missing"><t-var name="fallback" /></t-var></p>
+<!-- context -->
+{"data": {"fallback": "OK"}}
+<!-- out -->
+<p>OK</p>
+
+<!-- test: empty default no error -->
+<!-- in -->
+<p><t-var name="missing"></t-var></p>
+<!-- out -->
+<p></p>
+
+<!-- test: existing value is escaped but default body is not -->
+<!-- in -->
+<t-var name="x">default</t-var>
+<!-- context -->
+{"data": {"x": "<b>hi</b>"}}
+<!-- out -->
+&lt;b&gt;hi&lt;/b&gt;
+
+<!-- test: multiple vars in one template -->
+<!-- in -->
+<h1><t-var name="title" /></h1><p><t-var name="body" /></p>
+<!-- context -->
+{"data": {"title": "Hello", "body": "World"}}
+<!-- out -->
+<h1>Hello</h1><p>World</p>
+
+<!-- test: var with empty string value -->
+<!-- in -->
+<p><t-var name="x" /></p>
+<!-- context -->
+{"data": {"x": ""}}
+<!-- out -->
+<p></p>
+
+<!-- test: plain text passthrough -->
+<!-- in -->
+<p>No template elements here</p>
+<!-- out -->
+<p>No template elements here</p>
+
+<!-- test: missing name attribute is error -->
+<!-- in -->
+<p><t-var /></p>
+<!-- error: MalformedElement -->
+
+<!-- test: unclosed block var is error -->
+<!-- in -->
+<p><t-var name="x">no close tag</p>
+<!-- error: MalformedElement -->
+
+<!-- test: three-level dotted path -->
+<!-- in -->
+<t-var name="a.b.c.d" />
+<!-- context -->
+{"data": {"a": {"b": {"c": {"d": "deep"}}}}}
+<!-- out -->
+deep
+
+<!-- test: dotted path intermediate missing with default -->
+<!-- in -->
+<t-var name="a.b.c">fallback</t-var>
+<!-- context -->
+{"data": {"a": "leaf"}}
+<!-- out -->
+fallback
+
+<!-- test: var ampersand in attribute context -->
+<!-- in -->
+<a href="?a=1&amp;b=2"><t-var name="x" /></a>
+<!-- context -->
+{"data": {"x": "link"}}
+<!-- out -->
+<a href="?a=1&amp;b=2">link</a>
+
+<!-- test: var with single quote is escaped -->
+<!-- in -->
+<t-var name="x" />
+<!-- context -->
+{"data": {"x": "it's"}}
+<!-- out -->
+it&#x27;s
+
+<!-- test: var adjacent to text -->
+<!-- in -->
+prefix<t-var name="x" />suffix
+<!-- context -->
+{"data": {"x": "-mid-"}}
+<!-- out -->
+prefix-mid-suffix
+
+<!-- test: integer value auto-coerces to string -->
+<!-- in -->
+<t-var name="count">N/A</t-var>
+<!-- context -->
+{"data": {"count": 42}}
+<!-- out -->
+42
+
+<!-- test: boolean true auto-coerces to string -->
+<!-- in -->
+<t-var name="flag">N/A</t-var>
+<!-- context -->
+{"data": {"flag": true}}
+<!-- out -->
+true
