@@ -47,7 +47,9 @@ func TestParseNodes(t *testing.T) {
 
 func TestParseDeferred(t *testing.T) {
 	for _, input := range []string{
-		`<t-for x in="y"></t-for>`,
+		`<t-for x in y><t-slot /></t-for>`,
+		`<t-if var="y">a<t-elif var="z" /><t-debug /></t-if>`,
+		`<t-let name="y" transform="upper">b</t-let>`,
 		`a<t-var name="x">b<t-slot /></t-var>`,
 		`<t-var name="x" transform="upper" />`,
 		`<div t-attr:class="c"></div>`,
@@ -61,6 +63,7 @@ func TestParseDeferred(t *testing.T) {
 	}
 	for _, input := range []string{
 		`<t-comment><t-for x in="y"></t-comment>`,
+		`<t-if var="y">a</t-if><t-for x in y>b<t-else />c</t-for><t-let name="z">d</t-let>`,
 		`t-if t-var:x`,
 		`<!-- t-var:x -->`,
 		`<p title="t-var:">hello</p>`,
