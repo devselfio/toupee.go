@@ -171,3 +171,18 @@ Exit status: 0 match, 1 difference, 2 unable to check. See
     make tidy        # go mod tidy, on a clean worktree only
 
 Go 1.26, standard library only.
+
+### Continuous integration
+
+CI runs on pushes to `main` and on pull requests. It reads the Go version
+from `go.mod` and runs these gates in order: `make check`, `make build`,
+`make test`, `make spec-count`, then `make spec-drift`. A failed gate
+fails the job and stops subsequent gates.
+
+The last gate checks the corpus against its recorded hashes and Toupee
+at the tag pinned in `testdata/spec/ORIGIN.md`. If no HTTP response is
+received, it reports an offline check and uses the record alone; an
+unrecorded corpus edit still fails. An HTTP error, failed redirect or
+invalid archive also fails. CI never rewrites the record. Green CI
+means the current corpus measurement and known-failures policy pass;
+it does not mean every template feature is implemented.
