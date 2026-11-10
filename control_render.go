@@ -218,11 +218,16 @@ func (r *renderer) renderLoop(l *loop, ctx *renderContext) (string, error) {
 	return b.String(), nil
 }
 
-// renderLet renders l's body in ctx and stores it as a string under l's
-// literal name in ctx, replacing any earlier binding. It emits nothing.
+// renderLet renders l's body in ctx, runs l's transform chain on the result
+// and stores it as a string under l's literal name in ctx, replacing any
+// earlier binding. It emits nothing and escapes nothing. A failing step is a
+// MalformedElement at the t-let, and nothing is stored.
 func (r *renderer) renderLet(l *letBinding, ctx *renderContext) error {
 	s, err := r.renderNodes(l.body, ctx)
 	if err != nil {
+		return err
+	}
+	if s, err = r.applyTransformsAt(s, l.transforms, l.pos); err != nil {
 		return err
 	}
 	ctx.data[l.name] = Value{Kind: KindString, String: s}

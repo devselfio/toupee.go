@@ -205,8 +205,9 @@ func TestSpec(t *testing.T) {
 
 // controlCoverage is the inventory for "toupee.go renders conditionals,
 // loops and let": every case of its four files except the deferred ones
-// (they need composition or a transform), and the cases elsewhere that use
-// control flow with only implemented elements. See
+// (they need composition), and the cases elsewhere that use control flow
+// with only implemented elements. let.test L15 and L44 and loop.test L127,
+// deferred until transforms reached t-let (issue #14), are candidates now. See
 // .notes/toupee-v0.4.0-control-flow.md in the planning workspace.
 var controlCoverage = struct {
 	files        []string
@@ -217,8 +218,7 @@ var controlCoverage = struct {
 	deferred: []caseID{
 		{"conditional.test", 106}, {"conditional.test", 115}, {"conditional.test", 124},
 		{"conditional.test", 134}, {"conditional.test", 400}, {"conditional.test", 409},
-		{"loop.test", 127},
-		{"let.test", 15}, {"let.test", 35}, {"let.test", 44},
+		{"let.test", 35},
 	},
 	supplemental: []caseID{
 		{"comment.test", 13}, {"comment.test", 31},
@@ -254,7 +254,7 @@ func TestControlCorpusCoverage(t *testing.T) {
 		}
 		deferred[id] = true
 		if !known[id] {
-			t.Errorf("deferred %s is not in %s; it needs composition or a transform", id, knownFailuresPath)
+			t.Errorf("deferred %s is not in %s; it needs composition", id, knownFailuresPath)
 		}
 	}
 	candidates := map[caseID]bool{}
@@ -273,8 +273,8 @@ func TestControlCorpusCoverage(t *testing.T) {
 		}
 		candidates[id] = true
 	}
-	if len(candidates) != 165 {
-		t.Fatalf("inventory has %d candidates, want 165 (135 from the four files, 30 elsewhere)", len(candidates))
+	if len(candidates) != 168 {
+		t.Fatalf("inventory has %d candidates, want 168 (138 from the four files, 30 elsewhere)", len(candidates))
 	}
 	for id := range candidates {
 		if known[id] {

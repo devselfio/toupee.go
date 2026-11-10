@@ -140,3 +140,43 @@ func TestRenderNumericAndDateTransforms(t *testing.T) {
 		{"date on t-raw", `<t-raw name="bad" transform="date:%Y" />`, data, `<not a date>`},
 	})
 }
+
+// TestRenderLetTransforms checks that a t-let capture is transformed before
+// it is stored, as Toupee v0.4.0's renderLet does: the transformed text is
+// what later reads see, the capture emits nothing and is not escaped at
+// capture time, and a failing step is an error at the t-let.
+func TestRenderLetTransforms(t *testing.T) {
+	data := map[string]toupee.Value{"name": str("Ada Lovelace"), "html": str("<b>"), "items": {Kind: toupee.KindList, List: []toupee.Value{str("a b"), str("c")}}}
+	runRenderCases(t, []renderCase{
+		{"capture is transformed", `[<t-let name="s" transform="slugify"><t-var name="name" /></t-let>]<t-var name="s" />`, data, `[]ada-lovelace`},
+		{"chain left to right", `<t-let name="s" transform="truncate:3|upper">Ada Lovelace</t-let><t-var name="s" />`, data, `ADA`},
+		{"empty attribute is no chain", `<t-let name="s" transform="">A b</t-let><t-var name="s" />`, data, `A b`},
+		{"escaped once on t-var read", `<t-let name="s" transform="upper"><t-raw name="html" /></t-let><t-var name="s" />|<t-raw name="s" />`, data, `&lt;B&gt;|<B>`},
+		{"escape transform then t-raw", `<t-let name="s" transform="escape"><t-raw name="html" /></t-let><t-raw name="s" />`, data, `&lt;b&gt;`},
+		{"read again transformed", `<t-let name="s" transform="length">abcd</t-let><t-var name="s" transform="int|decimal:1" />`, data, `4.0`},
+		{"numeric capture", `<t-let name="s" transform="float">2.50</t-let><t-var name="s" />`, data, `2.5`},
+		{"date capture", `<t-let name="d" transform="date:%F">2024-03-01T01:00:00+08</t-let><t-var name="d" />`, data, `2024-02-29`},
+		{"loop-local transformed capture", `<t-for i in items><t-let name="y" transform="slugify"><t-var name="i" /></t-let><t-var name="y" />,</t-for><t-var name="y">gone</t-var>`, data, `a-b,c,gone`},
+		{"unknown name in an unused branch", `<t-if var="absent"><t-let name="s" transform="bogus">x</t-let></t-if>ok`, data, `ok`},
+	})
+
+	for _, tt := range []struct {
+		name, input, message string
+		line, col            int
+	}{
+		{"unknown name", "ab\n  <t-let name=\"s\" transform=\"bogus\">x</t-let>", `unknown transform "bogus"`, 2, 3},
+		{"bad argument", `<t-let name="s" transform="truncate:x">x</t-let>`, `truncate: invalid count "x"`, 1, 1},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := toupee.Render(tt.input, toupee.Context{Data: data}, nil)
+			var re *toupee.RenderError
+			if got != "" || !errors.As(err, &re) {
+				t.Fatalf("got %q, %v; want a *RenderError and no output", got, err)
+			}
+			if re.Kind != toupee.MalformedElement || re.Message != tt.message || re.Line != tt.line || re.Column != tt.col {
+				t.Errorf("got %s %q at %d:%d, want MalformedElement %q at %d:%d",
+					re.Kind, re.Message, re.Line, re.Column, tt.message, tt.line, tt.col)
+			}
+		})
+	}
+}

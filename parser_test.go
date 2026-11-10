@@ -50,6 +50,19 @@ func TestParseNodes(t *testing.T) {
 				vr(variable{name: "x", raw: true, pos: 16, transforms: []transformStep{{name: "upper"}}}),
 			}}),
 		}},
+		// A t-let's transform= is parsed the same way onto its binding.
+		{"let transform chain", `x<t-let name="s" transform="|date:%H:%M||Upper: ">a</t-let>`, []node{
+			text("x"),
+			{kind: letNode, let: &letBinding{pos: 1, name: "s", body: []node{text("a")}, transforms: []transformStep{
+				{name: "date", args: []string{"%H", "%M"}}, {name: "Upper", args: []string{" "}},
+			}}},
+		}},
+		{"let unknown transform parses", `<t-let name="s" transform="bogus"></t-let>`, []node{
+			{kind: letNode, let: &letBinding{pos: 0, name: "s", transforms: []transformStep{{name: "bogus"}}}},
+		}},
+		{"let empty transform attribute", `<t-let transform="" name="s">a</t-let>`, []node{
+			{kind: letNode, let: &letBinding{pos: 0, name: "s", body: []node{text("a")}}},
+		}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := parse(tt.input)
@@ -70,9 +83,7 @@ func TestParseDeferred(t *testing.T) {
 	for _, input := range []string{
 		`<t-for x in y><t-slot /></t-for>`,
 		`<t-if var="y">a<t-elif var="z" /><t-debug /></t-if>`,
-		`<t-let name="y" transform="upper">b</t-let>`,
 		`a<t-var name="x">b<t-slot /></t-var>`,
-		`<t-let name="y" transform="upper">1</t-let>`,
 		`<div t-attr:class="c"></div>`,
 		`<a href="/" t-var:title="t">l</a>`,
 		`<p title="t-var:" t-var:id="x">hello</p>`,
@@ -91,6 +102,8 @@ func TestParseDeferred(t *testing.T) {
 		`<p title="t-attr:">hello</p>`,
 		`<p data-t-var:example="x">hello</p>`,
 		`<p data-t-attr:example="x">hello</p>`,
+		`<t-let name="y" transform="upper">b</t-let>`,
+		`<t-for x in y><t-let name="z" transform="bogus">1</t-let></t-for>`,
 	} {
 		got, err := parse(input)
 		if err != nil || got.deferred {
