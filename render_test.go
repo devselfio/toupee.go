@@ -171,25 +171,24 @@ func TestRenderErrors(t *testing.T) {
 func TestRenderDeferredConstructs(t *testing.T) {
 	data := map[string]toupee.Value{"x": str("X")}
 	for _, input := range []string{
-		`<t-var name="x" /><t-if var="x">y<t-slot /></t-if>`,
-		`<t-for item in xs><t-include template="c" /></t-for>`,
+		`<t-var name="x" /><t-if var="x">y<t-debug /></t-if>`,
+		`<t-for item in xs><t-include template="c" /></t-for><t-debug />`,
 		`<t-let name="y" transform="upper">1</t-let>`,
 		`<t-debug />`,
-		`<t-attr name="c" />`,
-		`<t-slot />`,
-		`<t-include template="c" />`,
-		`<t-extend template="c">`,
-		`<t-define name="c"></t-define>`,
-		`<a t-var:href="x">l</a>`,
-		`<a t-attr:class="x">l</a>`,
-		`<t-var name="x" /><t-var name="undefined" /><t-slot />`,
+		`<t-var name="x" transform="upper" /><t-debug />`,
+		`<t-var name="x" /><t-var name="undefined" /><t-debug />`,
+		`<a t-var:href="x"><t-for item in xs><t-debug /></t-for></a>`,
+		`<t-include template="c"><t-if var="x"><t-debug /></t-if></t-include>`,
+		`<t-slot><t-let name="y" transform="upper">1</t-let></t-slot>`,
+		`<t-extend template="c"><t-define name="a"><t-debug /></t-define>`,
 	} {
 		got, err := toupee.Render(input, toupee.Context{Data: data}, nil)
 		if got != "" || err != nil {
 			t.Errorf("Render(%q) = %q, %v; want the bootstrap \"\", nil", input, got, err)
 		}
 	}
-	// Words that merely look like syntax do not defer.
+	// Words that merely look like syntax do not defer, and t-define and
+	// t-extend outside an extend's start are literal text, as upstream.
 	runRenderCases(t, []renderCase{
 		{"text mentions t-if", `t-if and t-var: are words`, nil, `t-if and t-var: are words`},
 		{"closing tag with t-var: text", `</a t-var:x>`, nil, `</a t-var:x>`},
@@ -198,5 +197,11 @@ func TestRenderDeferredConstructs(t *testing.T) {
 		{"attribute name ending t-var:", `<p data-t-var:example="x">hello</p>`, nil, `<p data-t-var:example="x">hello</p>`},
 		{"literal tag beside a variable", `<p title="t-var:"><t-var name="x" /></p>`, map[string]toupee.Value{"x": str("a&b")}, `<p title="t-var:">a&amp;b</p>`},
 		{"value mentions a tag", `<t-raw name="v" />`, map[string]toupee.Value{"v": str(`<t-if>`)}, `<t-if>`},
+		{"stray t-define", `<t-define name="c"></t-define>`, nil, `<t-define name="c"></t-define>`},
+		{"t-extend after content", `a<t-extend template="c">`, nil, `a<t-extend template="c">`},
+		{"bound variable", `<a t-var:href="x">l</a>`, map[string]toupee.Value{"x": str("X")}, `<a href="X">l</a>`},
+		{"bound attr without include", `<a t-attr:class="x">l</a>`, nil, `<a>l</a>`},
+		{"t-attr without include", `[<t-attr name="c" />]`, nil, `[]`},
+		{"unfilled slot", `[<t-slot />]`, nil, `[]`},
 	})
 }

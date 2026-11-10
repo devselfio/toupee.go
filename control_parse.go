@@ -208,7 +208,7 @@ func (p *parser) parseUnsignedModifier(tag, name string, pos int) (*uint64, erro
 	}
 	n, ok := parseUnsigned(v)
 	if !ok {
-		return nil, errorAt(p.source, pos, MalformedElement, "invalid integer value for attribute")
+		return nil, p.errorAt(pos, MalformedElement, "invalid integer value for attribute")
 	}
 	return &n, nil
 }
@@ -228,11 +228,11 @@ func extractWord(input string, start int) string {
 func (p *parser) parseLoopHeader(tag string, pos int) (*loop, error) {
 	space := strings.IndexByte(tag[len(forOpen):], ' ')
 	if space < 0 {
-		return nil, errorAt(p.source, pos, MalformedElement, "missing item variable in <t-for>")
+		return nil, p.errorAt(pos, MalformedElement, "missing item variable in <t-for>")
 	}
 	inTok := strings.Index(tag, " in ")
 	if inTok < 0 {
-		return nil, errorAt(p.source, pos, MalformedElement, "missing 'in' keyword in <t-for>")
+		return nil, p.errorAt(pos, MalformedElement, "missing 'in' keyword in <t-for>")
 	}
 	l := &loop{
 		pos:        pos,
@@ -263,7 +263,7 @@ func (p *parser) parseLoop(start, end int) (node, int, error) {
 	rest := p.source[start:end]
 	tagEnd := findTagEnd(rest)
 	if tagEnd < 0 {
-		return node{}, 0, errorAt(p.source, start, MalformedElement, "unclosed <t-for> tag")
+		return node{}, 0, p.errorAt(start, MalformedElement, "unclosed <t-for> tag")
 	}
 	l, err := p.parseLoopHeader(rest[:tagEnd+1], start)
 	if err != nil {
@@ -272,7 +272,7 @@ func (p *parser) parseLoop(start, end int) (node, int, error) {
 	bodyStart := start + tagEnd + 1
 	closePos := findMatchingClose(p.source[bodyStart:end], forOpen, forClose)
 	if closePos < 0 {
-		return node{}, 0, errorAt(p.source, start, MalformedElement, "missing closing </t-for> tag")
+		return node{}, 0, p.errorAt(start, MalformedElement, "missing closing </t-for> tag")
 	}
 	bodyEnd := bodyStart + closePos
 	sep, hasElse := findSeparator(p.source[bodyStart:bodyEnd], 0, false)
@@ -298,12 +298,12 @@ func (p *parser) parseConditional(start, end int) (node, int, error) {
 	rest := p.source[start:end]
 	tagEnd := findTagEnd(rest)
 	if tagEnd < 0 {
-		return node{}, 0, errorAt(p.source, start, MalformedElement, "unclosed <t-if> tag")
+		return node{}, 0, p.errorAt(start, MalformedElement, "unclosed <t-if> tag")
 	}
 	bodyStart := start + tagEnd + 1
 	closePos := findMatchingClose(p.source[bodyStart:end], ifOpen, ifClose)
 	if closePos < 0 {
-		return node{}, 0, errorAt(p.source, start, MalformedElement, "missing closing </t-if> tag")
+		return node{}, 0, p.errorAt(start, MalformedElement, "missing closing </t-if> tag")
 	}
 	bodyEnd := bodyStart + closePos
 	body := p.source[bodyStart:bodyEnd]
@@ -345,17 +345,17 @@ func (p *parser) parseLet(start, end int) (node, int, error) {
 	rest := p.source[start:end]
 	tagEnd := findTagEnd(rest)
 	if tagEnd < 0 {
-		return node{}, 0, errorAt(p.source, start, MalformedElement, "unclosed <t-let> tag")
+		return node{}, 0, p.errorAt(start, MalformedElement, "unclosed <t-let> tag")
 	}
 	tag := rest[:tagEnd+1]
 	name, ok := attrValue(tag, "name")
 	if !ok {
-		return node{}, 0, errorAt(p.source, start, MalformedElement, "missing 'name' attribute on <t-let>")
+		return node{}, 0, p.errorAt(start, MalformedElement, "missing 'name' attribute on <t-let>")
 	}
 	bodyStart := start + tagEnd + 1
 	closePos := strings.Index(p.source[bodyStart:end], letCloser)
 	if closePos < 0 {
-		return node{}, 0, errorAt(p.source, start, MalformedElement, "missing closing </t-let> tag")
+		return node{}, 0, p.errorAt(start, MalformedElement, "missing closing </t-let> tag")
 	}
 	if _, ok := attrValue(tag, "transform"); ok {
 		p.deferred = true

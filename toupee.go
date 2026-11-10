@@ -10,14 +10,19 @@
 // t-let captures, scoped as Toupee scopes them. A transform="a|b:arg"
 // attribute on t-var or t-raw runs Toupee's built-in string, escaping and
 // list transforms on the value before escaping; the numeric, boolean and
-// date transforms are not implemented yet.
+// date transforms are not implemented yet. And it implements composition:
+// t-include with attributes, fills, isolation and context= bindings;
+// t-extend chains with t-define; t-slot with default bodies; t-attr; and
+// t-var:/t-attr: bindings on ordinary tags, with TemplateNotFound,
+// DuplicateSlotDefinition and CircularReference errors.
 //
-// The other elements are not implemented yet. Until each is, an input that
-// uses t-debug, t-attr, t-slot, composition (t-include, t-extend,
-// t-define), a transform= attribute on t-let or a t-var:/t-attr: binding
-// on an ordinary tag renders as "", nil, as the bootstrap did. This is
+// The other elements are not implemented yet. Until each is, a render that
+// meets t-debug or a transform= attribute on t-let, in the input, a loaded
+// template or a slot fill, returns "", nil, as the bootstrap did. This is
 // temporary, not Toupee semantics.
 package toupee
+
+import "errors"
 
 // Context is the state a template renders against. The zero Context means
 // empty data, attrs and slots. Map keys may be empty; the empty slot name is
@@ -38,8 +43,13 @@ type Loader func(name string) (string, error)
 // loader. It reads its arguments without modifying them and keeps no state
 // between calls. Errors from rendering are *RenderError; use errors.As.
 //
-// On failure Render returns "" and the error, never partial output. It does
-// not call loader yet: no implemented element names a template.
+// Render calls loader once each time an include or extend names a
+// template. A missing template is a *RenderError of kind TemplateNotFound
+// located at the element that named it; any other loader error is returned
+// as the loader returned it. Errors inside a loaded template are located in
+// that template's source.
+//
+// On failure Render returns "" and the error, never partial output.
 func Render(input string, ctx Context, loader Loader) (string, error) {
 	tmpl, err := parse(input)
 	if err != nil {
@@ -48,8 +58,11 @@ func Render(input string, ctx Context, loader Loader) (string, error) {
 	if tmpl.deferred {
 		return "", nil
 	}
-	r := &renderer{source: input}
+	r := &renderer{source: input, loader: loader, loads: new(int)}
 	out, err := r.renderNodes(tmpl.nodes, newRenderContext(ctx))
+	if errors.Is(err, errDeferred) {
+		return "", nil
+	}
 	if err != nil {
 		return "", err
 	}
