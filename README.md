@@ -49,7 +49,8 @@ bindings:
   is `TemplateNotFound` with the name as message, at the element that named
   it; other loader errors are returned unchanged. A repeated definition is
   `DuplicateSlotDefinition` at its second opener; an extend chain that
-  revisits a template, or includes nested more than 50 deep, are
+  revisits a template, includes nested more than 50 deep, or a slot fill
+  that reaches its own slot again in the same state, are
   `CircularReference`. A failing `Render` returns `""` and the error, never
   partial output.
 - **Conditionals.** `<t-if var="a.b" equals="x">…<t-elif … />…<t-else />…</t-if>`

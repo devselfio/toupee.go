@@ -5,8 +5,9 @@ import (
 	"errors"
 )
 
-// maxDepth bounds nested includes, and separately nested slot fills, as
-// upstream's default max_depth does.
+// maxDepth bounds nested includes, as upstream's default max_depth does.
+// Slot fills render at the depth of the slot that asks for them, as
+// upstream renders them; see maxFillNesting for their own backstop.
 const maxDepth = 50
 
 // errDeferred reports that a template loaded or a slot fill parsed during

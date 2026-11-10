@@ -4,11 +4,20 @@ import (
 	"bytes"
 	"errors"
 	"maps"
+	"reflect"
 )
 
 // parkedSlot holds the anonymous fill an anonymous definition replaced, so
 // the replacement's own anonymous slot can render it.
 const parkedSlot = "__t_inner_body__"
+
+// maxFillNesting is a backstop for slot fills nested inside one another
+// that never repeat a state, such as a fill that grows a t-let each time it
+// fills itself again. Upstream renders fills at the slot's depth with no
+// bound, so it has no result for such a template; it overflows its stack.
+// Without the backstop the Go process would die the same way. It is far
+// above any finite chain of distinct slots a template could hold.
+const maxFillNesting = 1000
 
 // activeFill is a slot fill being rendered: the slot's name, the fill's
 // source and the scope the slot was met in. While the fill renders that
@@ -136,6 +145,12 @@ func (r *renderer) renderInclude(inc include, ctx *renderContext, out *bytes.Buf
 // s's default body in ctx, or else nothing. A present fill wins even when
 // empty. An anonymous slot whose fill replaced a parked one sees the parked
 // fill as its own anonymous slot.
+//
+// A fill renders at the slot's include depth, as upstream's does, so a
+// finite chain of fills of any length renders. Meeting the same slot with
+// the same fill in a scope equal to one a fill around it started from can
+// only repeat forever; that is a CircularReference at the slot, with the
+// slot name as its message.
 func (r *renderer) renderSlot(s slot, ctx *renderContext, out *bytes.Buffer) error {
 	indent := insertionIndent(out)
 	fill, ok := ctx.slots[s.name]
@@ -150,7 +165,7 @@ func (r *renderer) renderSlot(s slot, ctx *renderContext, out *bytes.Buffer) err
 		appendIndented(out, rendered, indent)
 		return nil
 	}
-	if len(r.fills) >= maxDepth {
+	if r.repeatsFill(s.name, fill, ctx) || len(r.fills) >= maxFillNesting {
 		return errorAt(r.source, s.pos, CircularReference, s.name)
 	}
 	tmpl, err := parse(fill)
@@ -174,6 +189,20 @@ func (r *renderer) renderSlot(s slot, ctx *renderContext, out *bytes.Buffer) err
 	}
 	appendIndented(out, rendered, indent)
 	return nil
+}
+
+// repeatsFill reports whether a fill around r is rendering the slot name
+// with fill from a scope equal to ctx. Rendering is deterministic in those
+// three, so the fill would meet this slot again in the same state forever.
+func (r *renderer) repeatsFill(name, fill string, ctx *renderContext) bool {
+	for _, f := range r.fills {
+		if f.name == name && f.source == fill &&
+			maps.Equal(f.ctx.attrs, ctx.attrs) && maps.Equal(f.ctx.slots, ctx.slots) &&
+			reflect.DeepEqual(f.ctx.data, ctx.data) {
+			return true
+		}
+	}
+	return false
 }
 
 // renderExtend renders the chain of templates ext starts. Its definitions

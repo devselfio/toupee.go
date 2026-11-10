@@ -229,3 +229,45 @@ func TestCompositionDeferredFill(t *testing.T) {
 		}
 	}
 }
+
+// TestCompositionFiniteFillChains shows nested slot fills that end are
+// rendered however deep they go: a chain of 51 distinct context slots, each
+// filling the next, and one slot whose fill fills it again until a t-let it
+// grows stops the recursion.
+func TestCompositionFiniteFillChains(t *testing.T) {
+	slots := map[string]string{"s50": "done"}
+	for i := 0; i < 50; i++ {
+		slots[fmt.Sprintf("s%d", i)] = fmt.Sprintf(`<t-slot name="s%d" />`, i+1)
+	}
+	got, err := toupee.Render(`<t-slot name="s0" />`, toupee.Context{Slots: slots}, nil)
+	if got != "done" || err != nil {
+		t.Errorf("51-slot chain = %q, %v; want \"done\", nil", got, err)
+	}
+
+	grow := `<t-let name="n"><t-var name="n"></t-var>.</t-let>`
+	fill := grow + `<t-if var="n" not-equals="..."><t-slot name="x" /></t-if>[<t-var name="n" />]`
+	got, err = toupee.Render(`<t-slot name="x" />`, toupee.Context{Slots: map[string]string{"x": fill}}, nil)
+	if want := "[...][..][.]"; got != want || err != nil {
+		t.Errorf("self-filling slot that stops = %q, %v; want %q, nil", got, err, want)
+	}
+}
+
+// TestCompositionEndlessFills shows fills that never end are a
+// CircularReference at the slot, with its name as the message: one that
+// meets its slot again in the same scope, and one whose scope grows each
+// time and never repeats.
+func TestCompositionEndlessFills(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		fill string
+		want toupee.RenderError
+	}{
+		{"same scope", "a\n<t-slot name=\"x\" />", toupee.RenderError{Line: 2, Column: 1, Kind: toupee.CircularReference, Message: "x"}},
+		{"growing scope", `<t-let name="n"><t-var name="n"></t-var>.</t-let><t-slot name="x" />`, toupee.RenderError{Line: 1, Column: 50, Kind: toupee.CircularReference, Message: "x"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := toupee.Render(`<t-slot name="x" />`, toupee.Context{Slots: map[string]string{"x": tt.fill}}, nil)
+			wantRenderError(t, got, err, tt.want)
+		})
+	}
+}
