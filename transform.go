@@ -23,9 +23,9 @@ type transformRegistry map[string]transformFn
 
 // builtinTransforms is the private registry of Toupee's built-in transforms,
 // keyed by their upstream names (src/transform.zig registerBuiltins). It is
-// filled at initialisation and only read afterwards. abs, floor, ceil, int,
-// float, decimal, bool and date are not implemented yet (issue #14's second
-// slice), so naming one is an unknown transform for now.
+// filled at initialisation and only read afterwards, and holds exactly
+// upstream's 25 names, in upstream's order. The numeric, boolean and date
+// transforms are in transform_number.go and transform_date.go.
 var builtinTransforms = transformRegistry{
 	"upper":      transformUpper,
 	"lower":      transformLower,
@@ -36,6 +36,9 @@ var builtinTransforms = transformRegistry{
 	"replace":    transformReplace,
 	"default":    transformDefault,
 	"length":     transformLength,
+	"abs":        transformAbs,
+	"floor":      transformFloor,
+	"ceil":       transformCeil,
 	"escape":     transformEscape,
 	"url_encode": transformURLEncode,
 	"url_decode": transformURLDecode,
@@ -44,6 +47,11 @@ var builtinTransforms = transformRegistry{
 	"split":      transformSplit,
 	"first":      transformFirst,
 	"last":       transformLast,
+	"date":       transformDate,
+	"int":        transformInt,
+	"float":      transformFloat,
+	"decimal":    transformDecimal,
+	"bool":       transformBool,
 }
 
 // parseTransformSpec parses a transform= attribute value as Toupee's

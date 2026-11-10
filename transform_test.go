@@ -7,11 +7,12 @@ import (
 	"testing"
 )
 
-// sliceOneTransforms are the built-ins issue #14's first slice registers.
-// The numeric, boolean and date names (abs, floor, ceil, int, float,
-// decimal, bool, date) belong to its second slice.
-var sliceOneTransforms = []string{
-	"capitalize", "default", "escape", "first", "join", "js_escape", "last",
+// upstreamTransforms are the 25 names Toupee v0.4.0's src/transform.zig
+// registerBuiltins registers, sorted. Each has a working assertion in
+// TestTransformBuiltins, TestNumericTransforms or TestDateTransform.
+var upstreamTransforms = []string{
+	"abs", "bool", "capitalize", "ceil", "date", "decimal", "default",
+	"escape", "first", "float", "floor", "int", "join", "js_escape", "last",
 	"length", "lower", "replace", "slugify", "split", "trim", "truncate",
 	"upper", "url_decode", "url_encode",
 }
@@ -22,8 +23,8 @@ func TestBuiltinTransformNames(t *testing.T) {
 		got = append(got, name)
 	}
 	sort.Strings(got)
-	if !reflect.DeepEqual(got, sliceOneTransforms) {
-		t.Errorf("builtinTransforms = %q, want %q", got, sliceOneTransforms)
+	if !reflect.DeepEqual(got, upstreamTransforms) {
+		t.Errorf("builtinTransforms = %q, want %q", got, upstreamTransforms)
 	}
 }
 
@@ -235,6 +236,12 @@ func TestApplyTransforms(t *testing.T) {
 		{"a b", "replace: :\n|join:+", "a+b"},
 		{"", "default:x|upper", "X"},
 		{"", "upper|default:x", "x"},
+		// Numeric results are text for the next step.
+		{"-3.7", "abs|floor|decimal:1", "3.0"},
+		{"2.5", "ceil|int|bool", "true"},
+		// A colon in a date format separates arguments; date uses the first.
+		{"2024-03-15T14:30:45", "date:%H:%M", "14"},
+		{"2024-03-15T14:30:45", "date:%T|replace:4:_", "1_:30:_5"},
 	} {
 		got, err := applyTransforms(tt.value, parseTransformSpec(tt.spec))
 		if err != nil || got != tt.want {
@@ -243,7 +250,7 @@ func TestApplyTransforms(t *testing.T) {
 	}
 	for _, spec := range []string{
 		"bogus", "upper|bogus", "Upper", " upper", ":x", "truncate|bogus",
-		"bogus|default", "truncate:x|default:y", "abs", "date",
+		"bogus|default", "truncate:x|default:y", "Abs", "date |upper",
 	} {
 		got, err := applyTransforms("v", parseTransformSpec(spec))
 		var re *RenderError

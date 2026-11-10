@@ -84,7 +84,7 @@ func TestRenderTransformErrors(t *testing.T) {
 		{"names are not trimmed", `<t-var name="s" transform=" upper" />`, toupee.MalformedElement, `unknown transform " upper"`, 1, 1},
 		{"empty name", `<t-var name="s" transform=":x" />`, toupee.MalformedElement, `unknown transform ""`, 1, 1},
 		{"unknown after a good step", `x<t-var name="s" transform="upper|bogus" />`, toupee.MalformedElement, `unknown transform "bogus"`, 1, 2},
-		{"slice-two name is unknown", `<t-var name="s" transform="abs" />`, toupee.MalformedElement, `unknown transform "abs"`, 1, 1},
+		{"numeric names are case-sensitive", `<t-var name="s" transform="ABS" />`, toupee.MalformedElement, `unknown transform "ABS"`, 1, 1},
 		{"bad argument", `<t-var name="s" transform="truncate:x" />`, toupee.MalformedElement, `truncate: invalid count "x"`, 1, 1},
 		{"missing argument", `<t-var name="s" transform="truncate" />`, toupee.MalformedElement, `truncate: missing count`, 1, 1},
 		{"default does not hide an earlier failing step", `<t-var name="absent" transform="truncate:x|default:d" />`, toupee.MalformedElement, `truncate: invalid count "x"`, 1, 1},
@@ -114,5 +114,29 @@ func TestRenderTransformErrors(t *testing.T) {
 	runRenderCases(t, []renderCase{
 		{"unused body", `<t-var name="s"><t-var name="s" transform="bogus" /></t-var>`, data, `hello`},
 		{"comment", `<t-comment><t-var name="s" transform="bogus" /></t-comment>ok`, data, `ok`},
+	})
+}
+
+// TestRenderNumericAndDateTransforms reaches the numeric, boolean and date
+// built-ins through attribute chains on t-var and t-raw.
+func TestRenderNumericAndDateTransforms(t *testing.T) {
+	data := map[string]toupee.Value{
+		"price": {Kind: toupee.KindFloat, Float: -29.999},
+		"n":     integer(-7),
+		"t":     boolean(true),
+		"when":  str("2024-01-01T14:30:00+01:00"),
+		"bad":   str("<not a date>"),
+	}
+	runRenderCases(t, []renderCase{
+		{"decimal truncates", `<t-var name="price" transform="abs|decimal:2" />`, data, `29.99`},
+		{"floor of a float", `<t-var name="price" transform="floor" />`, data, `-30`},
+		{"int of an integer", `<t-var name="n" transform="int" />`, data, `-7`},
+		{"boolean to number", `<t-var name="t" transform="int" />`, data, `1`},
+		{"bool of zero", `<t-var name="n" transform="replace:-7:0|bool" />`, data, `false`},
+		{"missing with default then int", `<t-var name="absent" transform="default|int" />`, data, `0`},
+		{"date %T in a chain", `<t-var name="when" transform="date:%T" />`, data, `13:30:00`},
+		{"date names", `<t-var name="when" transform="date:%A %e %B %Y" />`, data, `Monday 1 January 2024`},
+		{"date then escape", `<t-var name="bad" transform="date:%Y" />`, data, `&lt;not a date&gt;`},
+		{"date on t-raw", `<t-raw name="bad" transform="date:%Y" />`, data, `<not a date>`},
 	})
 }
