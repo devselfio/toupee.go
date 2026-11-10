@@ -4,13 +4,16 @@
 // Render implements literal text and HTML, t-var, t-raw and t-comment:
 // static and dynamic ($(expr)) data paths, the rendering of every Value
 // kind, default bodies, HTML escaping, and MalformedElement and
-// UndefinedVariable errors with their source line and column.
+// UndefinedVariable errors with their source line and column. A
+// transform="a|b:arg" attribute on t-var or t-raw runs Toupee's built-in
+// string, escaping and list transforms on the value before escaping; the
+// numeric, boolean and date transforms are not implemented yet.
 //
 // The other elements are not implemented yet. Until each is, an input that
 // uses control flow (t-if, t-elif, t-else, t-for), t-let, t-debug, t-attr,
-// t-slot, composition (t-include, t-extend, t-define), a transform=
-// attribute or a t-var:/t-attr: binding on an ordinary tag renders as
-// "", nil, as the bootstrap did. This is temporary, not Toupee semantics.
+// t-slot, composition (t-include, t-extend, t-define) or a t-var:/t-attr:
+// binding on an ordinary tag renders as "", nil, as the bootstrap did.
+// This is temporary, not Toupee semantics.
 package toupee
 
 // Context is the state a template renders against. The zero Context means

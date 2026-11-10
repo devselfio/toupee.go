@@ -34,11 +34,11 @@ type parser struct {
 }
 
 // parse parses source. When it meets a construct this port does not yet
-// implement (control flow, let, debug, attributes, slots, composition, a
-// transform= attribute, or a t-var:/t-attr: binding on an ordinary tag) it
-// stops and returns a result marked deferred; Render then keeps the
-// bootstrap behaviour for the whole input. A malformed supported element met
-// before that is still an error.
+// implement (control flow, let, debug, attributes, slots, composition, or
+// a t-var:/t-attr: binding on an ordinary tag) it stops and returns a
+// result marked deferred; Render then keeps the bootstrap behaviour for the
+// whole input. A malformed supported element met before that is still an
+// error.
 func parse(source string) (parsedTemplate, error) {
 	p := &parser{source: source}
 	nodes, err := p.parseContent(0, len(source))
@@ -145,11 +145,10 @@ func (p *parser) parseVariable(start, end int, raw bool) (variable, int, error) 
 	if !ok {
 		return variable{}, 0, errorAt(p.source, start, MalformedElement, "missing 'name' attribute")
 	}
-	if _, ok := attrValue(tag, "transform"); ok {
-		p.deferred = true
-		return variable{}, 0, nil
-	}
 	v := variable{name: name, raw: raw, pos: start}
+	if spec, ok := attrValue(tag, "transform"); ok {
+		v.transforms = parseTransformSpec(spec)
+	}
 	next := start + tagEnd + 1
 	if !selfClosing {
 		closer := varCloser
