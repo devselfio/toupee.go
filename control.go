@@ -70,4 +70,6 @@ type letBinding struct {
 	pos  int
 	name string
 	body []node
+	// transforms is the parsed transform= chain, nil when absent or empty.
+	transforms []transformStep
 }

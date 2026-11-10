@@ -132,16 +132,26 @@ func (r *renderer) renderVariable(v variable, ctx *renderContext) (string, error
 			return "", errorAt(r.source, v.pos, UndefinedVariable, v.name)
 		}
 	}
-	value, err := applyTransforms(value, v.transforms)
+	value, err := r.applyTransformsAt(value, v.transforms, v.pos)
 	if err != nil {
-		var re *RenderError
-		if errors.As(err, &re) {
-			return "", errorAt(r.source, v.pos, re.Kind, re.Message)
-		}
 		return "", err
 	}
 	if v.raw {
 		return value, nil
 	}
 	return escapeHTML(value), nil
+}
+
+// applyTransformsAt runs steps on value and places a failure at the element
+// whose opening '<' is at byte offset pos.
+func (r *renderer) applyTransformsAt(value string, steps []transformStep, pos int) (string, error) {
+	out, err := applyTransforms(value, steps)
+	if err != nil {
+		var re *RenderError
+		if errors.As(err, &re) {
+			return "", errorAt(r.source, pos, re.Kind, re.Message)
+		}
+		return "", err
+	}
+	return out, nil
 }

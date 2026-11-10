@@ -35,10 +35,10 @@ type parser struct {
 
 // parse parses source. A source whose first non-whitespace bytes open a
 // t-extend is an extend: its remaining content is only definitions. When the
-// parser meets a construct this port does not yet implement (debug or a
-// transform= attribute on t-let) it stops and returns a result marked
-// deferred; Render then keeps the bootstrap behaviour for the whole render.
-// A malformed element met before that is still an error.
+// parser meets a construct this port does not yet implement (debug) it stops
+// and returns a result marked deferred; Render then keeps the bootstrap
+// behaviour for the whole render. A malformed element met before that is
+// still an error.
 func parse(source string) (parsedTemplate, error) {
 	p := &parser{source: source}
 	start := len(source) - len(strings.TrimLeft(source, " \t\r\n"))

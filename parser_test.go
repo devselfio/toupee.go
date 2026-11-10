@@ -50,6 +50,19 @@ func TestParseNodes(t *testing.T) {
 				vr(variable{name: "x", raw: true, pos: 16, transforms: []transformStep{{name: "upper"}}}),
 			}}),
 		}},
+		// A t-let's transform= is parsed the same way onto its binding.
+		{"let transform chain", `x<t-let name="s" transform="|date:%H:%M||Upper: ">a</t-let>`, []node{
+			text("x"),
+			{kind: letNode, let: &letBinding{pos: 1, name: "s", body: []node{text("a")}, transforms: []transformStep{
+				{name: "date", args: []string{"%H", "%M"}}, {name: "Upper", args: []string{" "}},
+			}}},
+		}},
+		{"let unknown transform parses", `<t-let name="s" transform="bogus"></t-let>`, []node{
+			{kind: letNode, let: &letBinding{pos: 0, name: "s", transforms: []transformStep{{name: "bogus"}}}},
+		}},
+		{"let empty transform attribute", `<t-let transform="" name="s">a</t-let>`, []node{
+			{kind: letNode, let: &letBinding{pos: 0, name: "s", body: []node{text("a")}}},
+		}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := parse(tt.input)
@@ -70,9 +83,7 @@ func TestParseDeferred(t *testing.T) {
 	for _, input := range []string{
 		`<t-for x in y><t-debug /></t-for>`,
 		`<t-if var="y">a<t-elif var="z" /><t-debug /></t-if>`,
-		`<t-let name="y" transform="upper">b</t-let>`,
 		`a<t-var name="x">b<t-debug /></t-var>`,
-		`<t-include template="c"><t-define name="a"><t-let name="b" transform="upper">c</t-let></t-define></t-include>`,
 		`<t-include template="c"><t-debug /></t-include>`,
 		`<t-extend template="c"><t-define><t-if var="x"><t-debug /></t-if></t-define>`,
 		`<t-slot><t-for x in y><t-debug /></t-for></t-slot>`,
@@ -91,12 +102,15 @@ func TestParseDeferred(t *testing.T) {
 		`<p title="t-attr:">hello</p>`,
 		`<p data-t-var:example="x">hello</p>`,
 		`<p data-t-attr:example="x">hello</p>`,
+		`<t-let name="y" transform="upper">b</t-let>`,
+		`<t-for x in y><t-let name="z" transform="bogus">1</t-let></t-for>`,
 		`a<t-var name="x">b<t-slot /></t-var>`,
 		`<div t-attr:class="c"></div>`,
 		`<a href="/" t-var:title="t">l</a>`,
 		`<t-include template="c" /><t-attr name="a" />`,
 		` <t-extend template="c">`,
 		`<t-include template="c"><t-define name="a"><t-let name="b">c</t-let></t-define></t-include>`,
+		`<t-include template="c"><t-define name="a"><t-let name="b" transform="upper">c</t-let></t-define></t-include>`,
 		`<t-slot><t-for x in y>a</t-for></t-slot>`,
 	} {
 		got, err := parse(input)

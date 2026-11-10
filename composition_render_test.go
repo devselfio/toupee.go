@@ -231,7 +231,7 @@ func TestCompositionReuse(t *testing.T) {
 // deferred construct keeping the bootstrap result for the whole render,
 // even after output and inside an include.
 func TestCompositionDeferredFill(t *testing.T) {
-	ctx := toupee.Context{Slots: map[string]string{"": `<t-let name="a" transform="upper">b</t-let>`}}
+	ctx := toupee.Context{Slots: map[string]string{"": `<t-debug />`}}
 	for _, in := range []string{`before<t-slot />`, `<t-extend template="base">`} {
 		got, err := toupee.Render(in, ctx, mapLoader(map[string]string{"base": "x<t-slot />"}, nil))
 		if got != "" || err != nil {

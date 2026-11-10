@@ -205,21 +205,18 @@ func TestSpec(t *testing.T) {
 
 // controlCoverage is the inventory for "toupee.go renders conditionals,
 // loops and let": every case of its four files except the deferred ones
-// (they need a transform), and the cases elsewhere that use control flow
-// with only implemented elements. The cases of the four files that also
-// need composition were deferred until composition landed; they are now
-// checked here too. See .notes/toupee-v0.4.0-control-flow.md in the
-// planning workspace.
+// (none now), and the cases elsewhere that use control flow with only
+// implemented elements. The cases of the four files that need composition
+// (#13) or a transform on t-let (#14) were deferred until those landed;
+// both have, so every case of the four files is checked here. See
+// .notes/toupee-v0.4.0-control-flow.md in the planning workspace.
 var controlCoverage = struct {
 	files        []string
 	deferred     []caseID
 	supplemental []caseID
 }{
-	files: []string{"conditional.test", "let.test", "loop.test", "types-compare.test"},
-	deferred: []caseID{
-		{"loop.test", 127},
-		{"let.test", 15}, {"let.test", 44},
-	},
+	files:    []string{"conditional.test", "let.test", "loop.test", "types-compare.test"},
+	deferred: []caseID{},
 	supplemental: []caseID{
 		{"comment.test", 13}, {"comment.test", 31},
 		{"dynamic-path.test", 57}, {"dynamic-path.test", 65}, {"dynamic-path.test", 73},
@@ -254,7 +251,7 @@ func TestControlCorpusCoverage(t *testing.T) {
 		}
 		deferred[id] = true
 		if !known[id] {
-			t.Errorf("deferred %s is not in %s; it needs a transform", id, knownFailuresPath)
+			t.Errorf("deferred %s is not in %s; it needs an element that has not landed", id, knownFailuresPath)
 		}
 	}
 	candidates := map[caseID]bool{}
@@ -273,8 +270,8 @@ func TestControlCorpusCoverage(t *testing.T) {
 		}
 		candidates[id] = true
 	}
-	if len(candidates) != 172 {
-		t.Fatalf("inventory has %d candidates, want 172 (142 from the four files, 30 elsewhere)", len(candidates))
+	if len(candidates) != 175 {
+		t.Fatalf("inventory has %d candidates, want 175 (145 from the four files, 30 elsewhere)", len(candidates))
 	}
 	for id := range candidates {
 		if known[id] {

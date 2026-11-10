@@ -8,18 +8,18 @@
 // implements t-if, t-elif and t-else with every condition Toupee defines,
 // t-for with sorting, offset, limit, alias metadata and an else body, and
 // t-let captures, scoped as Toupee scopes them. A transform="a|b:arg"
-// attribute on t-var or t-raw runs Toupee's built-in string, escaping and
-// list transforms on the value before escaping; the numeric, boolean and
-// date transforms are not implemented yet. And it implements composition:
-// t-include with attributes, fills, isolation and context= bindings;
-// t-extend chains with t-define; t-slot with default bodies; t-attr; and
-// t-var:/t-attr: bindings on ordinary tags, with TemplateNotFound,
-// DuplicateSlotDefinition and CircularReference errors.
+// attribute on t-var, t-raw or t-let runs a chain of Toupee's 25 built-in
+// transforms (string, escaping, list, numeric, boolean and date) left to
+// right: on t-var before the value is escaped, on t-raw before it is
+// written verbatim, and on t-let before the capture is stored. And it
+// implements composition: t-include with attributes, fills, isolation and
+// context= bindings; t-extend chains with t-define; t-slot with default
+// bodies; t-attr; and t-var:/t-attr: bindings on ordinary tags, with
+// TemplateNotFound, DuplicateSlotDefinition and CircularReference errors.
 //
 // The other elements are not implemented yet. Until each is, a render that
-// meets t-debug or a transform= attribute on t-let, in the input, a loaded
-// template or a slot fill, returns "", nil, as the bootstrap did. This is
-// temporary, not Toupee semantics.
+// meets t-debug, in the input, a loaded template or a slot fill, returns
+// "", nil, as the bootstrap did. This is temporary, not Toupee semantics.
 package toupee
 
 import "errors"

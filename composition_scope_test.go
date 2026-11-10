@@ -26,8 +26,8 @@ var coreCompositionRoster = map[string][]int{
 
 // mixedCompositionRoster is every composition acceptance case for issue #13
 // that also needs control flow or let, in the same form as
-// coreCompositionRoster. include.test L122 is on neither: it needs a
-// transform on t-let.
+// coreCompositionRoster. include.test L122 is on neither: it also needs a
+// transform on t-let (issue #14), and TestSpec covers it.
 var mixedCompositionRoster = map[string][]int{
 	"conditional.test":  {106, 115, 124, 134, 400, 409},
 	"dynamic-path.test": {57, 65, 73},

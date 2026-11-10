@@ -339,8 +339,8 @@ func (p *parser) parseConditional(start, end int) (node, int, error) {
 
 // parseLet parses the t-let element opening at start, within source[:end],
 // and returns it with the offset just past it. Its body ends at the first
-// </t-let>, without regard to nesting. A transform= attribute defers the
-// whole template.
+// </t-let>, without regard to nesting. A transform= attribute is parsed as
+// on t-var; its names are checked only when the binding renders.
 func (p *parser) parseLet(start, end int) (node, int, error) {
 	rest := p.source[start:end]
 	tagEnd := findTagEnd(rest)
@@ -357,14 +357,13 @@ func (p *parser) parseLet(start, end int) (node, int, error) {
 	if closePos < 0 {
 		return node{}, 0, p.errorAt(start, MalformedElement, "missing closing </t-let> tag")
 	}
-	if _, ok := attrValue(tag, "transform"); ok {
-		p.deferred = true
-		return node{}, 0, nil
-	}
 	body, err := p.parseContent(bodyStart, bodyStart+closePos)
 	if err != nil || p.deferred {
 		return node{}, 0, err
 	}
 	l := &letBinding{pos: start, name: name, body: body}
+	if spec, ok := attrValue(tag, "transform"); ok {
+		l.transforms = parseTransformSpec(spec)
+	}
 	return node{kind: letNode, let: l}, bodyStart + closePos + len(letCloser), nil
 }

@@ -6,10 +6,10 @@ template engine, measured case by case against Toupee's own spec corpus.
     import "github.com/devselfio/toupee.go" // package toupee
 
 **Status: variables, raw output, comments, conditionals, loops, let,
-composition and string transforms.** `Render` implements literal text and
-HTML, `t-var`, `t-raw`, `t-comment`, `t-if`/`t-elif`/`t-else`, `t-for`,
+composition and transforms.** `Render` implements literal text and HTML,
+`t-var`, `t-raw`, `t-comment`, `t-if`/`t-elif`/`t-else`, `t-for`,
 `t-let`, `t-include`, `t-extend`, `t-define`, `t-slot`, `t-attr`, attribute
-bindings, and the `transform=` attribute on `t-var` and `t-raw`:
+bindings, and the `transform=` attribute on `t-var`, `t-raw` and `t-let`:
 
 - **Paths.** `name="a.b.0"` follows map keys and decimal list indices from
   `Data`; a segment `$(expr)` is replaced by the scalar `expr` resolves to
@@ -26,14 +26,21 @@ bindings, and the `transform=` attribute on `t-var` and `t-raw`:
   on `|` (empty steps skipped) and arguments on `:` (empty ones kept), with
   no trimming or quoting. A `default` step anywhere in the chain stands in
   for a missing value, nil, list or map with `""` instead of raising
-  `UndefinedVariable`; a body still comes first. Implemented: `upper`,
-  `lower`, `capitalize`, `trim`, `slugify`, `truncate`, `replace`,
-  `default`, `length`, `escape`, `url_encode`, `url_decode`, `js_escape`,
-  `join`, `split`, `first`, `last`, with Toupee's byte-wise semantics. An
-  unknown name or a bad argument is a `MalformedElement` at the element,
-  raised only when the element renders. `abs`, `floor`, `ceil`, `int`,
-  `float`, `decimal`, `bool` and `date` are not implemented yet and are
-  unknown names for now.
+  `UndefinedVariable`; a body still comes first. All 25 of Toupee's
+  built-ins are implemented, and only those: `upper`, `lower`,
+  `capitalize`, `trim`, `slugify`, `truncate`, `replace`, `default`,
+  `length`, `escape`, `url_encode`, `url_decode`, `js_escape`, `join`,
+  `split`, `first` and `last` with Toupee's byte-wise semantics; `abs`,
+  `floor`, `ceil`, `int`, `float` and `decimal`, which read the text as a
+  number (`true` is 1, anything unparseable 0; `decimal:N` cuts to N
+  places, default 2, without rounding); `bool`, false only for empty,
+  `false` or `0` after trimming; and `date:FORMAT`, which formats an ISO
+  date with an optional time and offset, normalised to UTC, using
+  `%Y %m %d %e %H %M %S %B %b %A %a %p %P %I %F %T %%`, and returns any
+  other text unchanged. A colon always separates arguments, so a format
+  with a colon is written with `%T`. An unknown name or a bad argument is
+  a `MalformedElement` at the element, raised only when the element
+  renders.
 - **Escaping.** `t-var` escapes its result, a rendered default included,
   mapping exactly `&`, `<`, `>`, `"` and `'` to `&amp;`, `&lt;`, `&gt;`,
   `&quot;` and `&#x27;`; `t-raw` writes it unchanged. Every other byte of
@@ -97,7 +104,8 @@ bindings, and the `transform=` attribute on `t-var` and `t-raw`:
 - **Let.** `<t-let name="n">…</t-let>` renders its body and stores the
   string under the literal top-level key `n`, emitting nothing and
   replacing any earlier value; a later `t-var` escapes it, `t-raw` does
-  not.
+  not. With `transform=`, the chain runs on the rendered body before it
+  is stored, unescaped; a failing step stores nothing.
 - **Scope.** A conditional renders in its parent's scope, so a `t-let`
   inside it is visible afterwards. Each loop iteration starts from a fresh
   copy of the parent scope, so its item, alias and lets end with the
@@ -105,8 +113,8 @@ bindings, and the `transform=` attribute on `t-var` and `t-raw`:
   its lets end with it. Bindings never reach the caller's `Context`.
 
 The other elements are not implemented yet. Until each is, a render that
-meets `t-debug` or a `transform=` attribute on `t-let`, in the input, a
-loaded template or a slot fill, renders as `"", nil`, as the
+meets `t-debug`, in the input, a loaded template or a slot fill, renders
+as `"", nil`, as the
 bootstrap did. This is a temporary measure, not Toupee's semantics.
 
 ## API
@@ -216,9 +224,9 @@ Subtests are `TestSpec/<file without .test>/L<line>`, so
 still validated against the whole corpus, so a filtered run does not call
 real entries stale. An unfiltered run logs the measurement:
 
-    corpus: 455 of 519 cases pass
+    corpus: 518 of 519 cases pass
 
-64 cases are on the list.
+1 case is on the list.
 A filtered run reports its selected count instead.
 
 **A drift check.** `make spec-drift` runs `cmd/driftcheck`. It checks the
