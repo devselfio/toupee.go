@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -199,5 +200,88 @@ func TestSpec(t *testing.T) {
 		t.Logf("corpus: %d of %d cases pass", pass, len(corpus))
 	} else {
 		t.Logf("corpus (filtered): %d of %d selected cases pass; %d cases in the corpus", pass, ran, len(corpus))
+	}
+}
+
+// controlCoverage is the inventory for "toupee.go renders conditionals,
+// loops and let": every case of its four files except the deferred ones
+// (they need composition or a transform), and the cases elsewhere that use
+// control flow with only implemented elements. See
+// .notes/toupee-v0.4.0-control-flow.md in the planning workspace.
+var controlCoverage = struct {
+	files        []string
+	deferred     []caseID
+	supplemental []caseID
+}{
+	files: []string{"conditional.test", "let.test", "loop.test", "types-compare.test"},
+	deferred: []caseID{
+		{"conditional.test", 106}, {"conditional.test", 115}, {"conditional.test", 124},
+		{"conditional.test", 134}, {"conditional.test", 400}, {"conditional.test", 409},
+		{"loop.test", 127},
+		{"let.test", 15}, {"let.test", 35}, {"let.test", 44},
+	},
+	supplemental: []caseID{
+		{"comment.test", 13}, {"comment.test", 31},
+		{"dynamic-path.test", 57}, {"dynamic-path.test", 65}, {"dynamic-path.test", 73},
+		{"edge.test", 71}, {"edge.test", 119}, {"edge.test", 176}, {"edge.test", 201}, {"edge.test", 209},
+		{"error.test", 6}, {"error.test", 11}, {"error.test", 16}, {"error.test", 21},
+		{"error.test", 26}, {"error.test", 102}, {"error.test", 107},
+		{"integration.test", 56},
+		{"nesting.test", 1}, {"nesting.test", 9}, {"nesting.test", 17}, {"nesting.test", 56},
+		{"nesting.test", 64}, {"nesting.test", 72}, {"nesting.test", 88}, {"nesting.test", 127},
+		{"types-extremes.test", 113}, {"types-extremes.test", 121},
+		{"types-extremes.test", 129}, {"types-extremes.test", 217},
+	},
+}
+
+// TestControlCorpusCoverage checks that every control-flow case the
+// inventory names passes and is not in the known-failures list, and that the
+// deferred cases stay listed. It is a coverage check; TestSpec stays the
+// authority on the whole corpus.
+func TestControlCorpusCoverage(t *testing.T) {
+	files := loadCorpus(t)
+	known := loadKnownFailures(t)
+	byID := map[caseID]preparedCase{}
+	for _, f := range files {
+		for _, c := range f.cases {
+			byID[c.id] = c
+		}
+	}
+	deferred := map[caseID]bool{}
+	for _, id := range controlCoverage.deferred {
+		if _, ok := byID[id]; !ok {
+			t.Fatalf("deferred %s is not a corpus case", id)
+		}
+		deferred[id] = true
+		if !known[id] {
+			t.Errorf("deferred %s is not in %s; it needs composition or a transform", id, knownFailuresPath)
+		}
+	}
+	candidates := map[caseID]bool{}
+	for _, f := range files {
+		if slices.Contains(controlCoverage.files, f.name) {
+			for _, c := range f.cases {
+				if !deferred[c.id] {
+					candidates[c.id] = true
+				}
+			}
+		}
+	}
+	for _, id := range controlCoverage.supplemental {
+		if _, ok := byID[id]; !ok {
+			t.Fatalf("supplemental %s is not a corpus case", id)
+		}
+		candidates[id] = true
+	}
+	if len(candidates) != 165 {
+		t.Fatalf("inventory has %d candidates, want 165 (135 from the four files, 30 elsewhere)", len(candidates))
+	}
+	for id := range candidates {
+		if known[id] {
+			t.Errorf("%s is still in %s", id, knownFailuresPath)
+		}
+		if err := checkCase(byID[id]); err != nil {
+			t.Error(err)
+		}
 	}
 }
