@@ -5,10 +5,11 @@ template engine, measured case by case against Toupee's own spec corpus.
 
     import "github.com/devselfio/toupee.go" // package toupee
 
-**Status: variables, raw output, comments, conditionals, loops, let and
-transforms.** `Render` implements literal text and HTML, `t-var`,
-`t-raw`, `t-comment`, `t-if`/`t-elif`/`t-else`, `t-for` and `t-let`, and
-the `transform=` attribute on `t-var`, `t-raw` and `t-let`:
+**Status: variables, raw output, comments, conditionals, loops, let,
+composition and transforms.** `Render` implements literal text and HTML,
+`t-var`, `t-raw`, `t-comment`, `t-if`/`t-elif`/`t-else`, `t-for`,
+`t-let`, `t-include`, `t-extend`, `t-define`, `t-slot`, `t-attr`, attribute
+bindings, and the `transform=` attribute on `t-var`, `t-raw` and `t-let`:
 
 - **Paths.** `name="a.b.0"` follows map keys and decimal list indices from
   `Data`; a segment `$(expr)` is replaced by the scalar `expr` resolves to
@@ -46,10 +47,35 @@ the `transform=` attribute on `t-var`, `t-raw` and `t-let`:
   the template is kept as it is: there is no HTML parsing or normalising.
 - **Comments.** `<t-comment>…</t-comment>` and `<t-comment />` produce
   nothing; their bodies are not parsed.
+- **Composition.** `<t-include template="NAME" … />` renders the named
+  template, which sees a copy of the caller's data (none with `isolated`),
+  overlaid with each `context="PATH[ as KEY], …"` binding that resolves,
+  and only the include's own attributes (every attribute but `template`,
+  `isolated` and `context`, as literal text) and fills: its `<t-define>`
+  bodies and its other, trimmed body content as the unnamed fill. A
+  template whose first non-whitespace element is `<t-extend
+  template="PARENT">` is only definitions; the chain is followed to its
+  first non-extending template, the most derived definition of each slot
+  winning. `<t-slot name="N">default</t-slot>` renders its fill, parsed and
+  rendered where the slot is, or else its default body; a present empty
+  fill still wins. `<t-attr name="N" />` writes an include attribute, and
+  `t-var:ATTR="PATH"` and `t-attr:ATTR="NAME"` on an ordinary tag write
+  `ATTR="VALUE"`, omitted when there is no value. Included and slot output
+  is indented to its insertion point.
 - **Errors.** A malformed element is a `MalformedElement` error, an
   undefined variable an `UndefinedVariable` error, each at the line and
-  column of the element's `<`, counted in bytes. A failing `Render` returns
-  `""` and the error, never partial output.
+  column of the element's `<`, counted in bytes. Errors inside a loaded
+  template are located in its source. A template the loader does not know
+  is `TemplateNotFound` with the name as message, at the element that named
+  it; other loader errors are returned unchanged. A repeated definition is
+  `DuplicateSlotDefinition` at its second opener; an extend chain that
+  revisits a template, includes nested more than 50 deep, and a slot fill
+  that reaches its own slot again in the same state with no loader call
+  in between are `CircularReference`. A failing `Render` returns `""` and
+  the error, never partial output. Slot fills have no nesting limit of
+  their own: a chain of fills that ends renders however deep it goes. A
+  fill that never ends but changes its scope or calls the loader each time
+  is not detected, so `Render` gives no termination guarantee for it.
 - **Conditionals.** `<t-if var="a.b" equals="x">…<t-elif … />…<t-else />…</t-if>`
   renders the first branch whose condition holds, else the else body.
   The subject is the first of `var`, `attr` and `slot`; with none it is
@@ -83,14 +109,13 @@ the `transform=` attribute on `t-var`, `t-raw` and `t-let`:
 - **Scope.** A conditional renders in its parent's scope, so a `t-let`
   inside it is visible afterwards. Each loop iteration starts from a fresh
   copy of the parent scope, so its item, alias and lets end with the
-  iteration. Bindings never reach the caller's `Context`.
+  iteration. An include or a slot fill renders in its own copy too, so
+  its lets end with it. Bindings never reach the caller's `Context`.
 
-The other elements are not implemented yet. Until each is, an input that
-uses `t-debug`, `t-attr`, `t-slot`, composition (`t-include`,
-`t-extend`, `t-define`) or a
-`t-var:`/`t-attr:` binding on an ordinary tag renders as `"", nil`, as the
+The other elements are not implemented yet. Until each is, a render that
+meets `t-debug`, in the input, a loaded template or a slot fill, renders
+as `"", nil`, as the
 bootstrap did. This is a temporary measure, not Toupee's semantics.
-`Render` does not yet call the loader.
 
 ## API
 
@@ -199,9 +224,9 @@ Subtests are `TestSpec/<file without .test>/L<line>`, so
 still validated against the whole corpus, so a filtered run does not call
 real entries stale. An unfiltered run logs the measurement:
 
-    corpus: 425 of 519 cases pass
+    corpus: 518 of 519 cases pass
 
-94 cases are on the list.
+1 case is on the list.
 A filtered run reports its selected count instead.
 
 **A drift check.** `make spec-drift` runs `cmd/driftcheck`. It checks the

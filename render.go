@@ -1,19 +1,41 @@
 package toupee
 
 import (
+	"bytes"
 	"errors"
-	"strings"
 )
 
-// renderer renders parsed nodes for one Render call.
+// maxDepth bounds nested includes, as upstream's default max_depth does.
+// Slot fills render at the depth of the slot that asks for them, as
+// upstream renders them, and have no count limit of their own; see
+// renderSlot for the repeats that are reported.
+const maxDepth = 50
+
+// errDeferred reports that a template loaded or a slot fill parsed during
+// rendering uses a construct this port does not implement yet. Render turns
+// it into the bootstrap result for the whole call.
+var errDeferred = errors.New("toupee: deferred construct")
+
+// renderer renders the parsed nodes of one template. source is the text
+// those nodes were parsed from, so errors are located in it; templateName
+// is its name, "" for the input. depth counts the includes above it. fills
+// holds the slot fills being rendered around it, innermost last. loads
+// counts the loader calls made so far by the whole Render call; every
+// renderer of one call shares it.
 type renderer struct {
-	source string
+	source       string
+	loader       Loader
+	loads        *int
+	templateName string
+	depth        int
+	fills        []activeFill
 }
 
 // renderContext is the scope nodes render in. data is owned by the render:
 // Render starts from a shallow copy of the caller's Data, each loop
-// iteration from a shallow copy of its parent's, and t-let writes into the
-// scope it runs in. attrs and slots are only read.
+// iteration, include and slot fill from a shallow copy of its parent's, and
+// t-let writes into the scope it runs in. attrs and slots are only read; a
+// scope that needs different ones gets new maps.
 type renderContext struct {
 	data  map[string]Value
 	attrs map[string]string
@@ -52,7 +74,7 @@ func (c *renderContext) lookup(path string) (Value, bool) {
 
 // renderNodes renders nodes in order in ctx.
 func (r *renderer) renderNodes(nodes []node, ctx *renderContext) (string, error) {
-	var b strings.Builder
+	var b bytes.Buffer
 	for _, n := range nodes {
 		var s string
 		var err error
@@ -61,6 +83,16 @@ func (r *renderer) renderNodes(nodes []node, ctx *renderContext) (string, error)
 			s = n.text
 		case variableNode:
 			s, err = r.renderVariable(n.variable, ctx)
+		case attrOutputNode:
+			s = r.renderAttrOutput(n.attrOutput, ctx)
+		case boundTagNode:
+			s, err = r.renderBoundTag(n.boundTag, ctx)
+		case extendNode:
+			s, err = r.renderExtend(n.extension, ctx)
+		case slotNode:
+			err = r.renderSlot(n.slot, ctx, &b)
+		case includeNode:
+			err = r.renderInclude(n.include, ctx, &b)
 		case conditionalNode:
 			s, err = r.renderConditional(n.conditional, ctx)
 		case loopNode:
