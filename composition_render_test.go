@@ -333,3 +333,50 @@ func TestCompositionLoaderDependentFills(t *testing.T) {
 		}
 	})
 }
+
+// TestCompositionControlScope renders composition inside control flow: a
+// fill that reads the child's own lets and attrs, and isolated includes in
+// a loop that see only what context= hands them. Sibling includes and loop
+// iterations do not see each other's bindings, and the caller's Context
+// stays usable after a success and after a failing child.
+func TestCompositionControlScope(t *testing.T) {
+	build := func() toupee.Context {
+		return toupee.Context{
+			Data: map[string]toupee.Value{
+				"secret": s("S"),
+				"items": {Kind: toupee.KindList, List: []toupee.Value{
+					{Kind: toupee.KindMap, Map: map[string]toupee.Value{"name": s("a")}},
+					{Kind: toupee.KindMap, Map: map[string]toupee.Value{"name": s("b&")}},
+				}},
+			},
+			Attrs: map[string]string{"class": "caller"},
+		}
+	}
+	ctx, want := build(), build()
+	loader := mapLoader(map[string]string{
+		"card": `<t-let name="local">L<t-attr name="class" /></t-let><t-slot />;<t-var name="inner">none</t-var>|<t-var name="local" />`,
+		"row":  `[<t-var name="i" />:<t-var name="name" />|<t-var name="secret">-</t-var>|<t-var name="item.name">-</t-var>|<t-var name="loop.index">-</t-var>]`,
+		"bad":  `<t-var name="name" /><t-var name="secret" />`,
+	}, nil)
+	const fills = `<t-include template="card" class="1"><t-var name="local" />/<t-attr name="class" /><t-let name="inner">I</t-let></t-include>` +
+		`<t-include template="card" class="2"><t-var name="inner">-</t-var></t-include>` +
+		`<t-var name="local">gone</t-var><t-var name="inner">gone</t-var><t-attr name="class" />`
+	const fillsWant = `L1/1;none|L1-;none|L2gonegonecaller`
+	const loop = `<t-for item in items as loop><t-include template="row" isolated context="item.name as name, loop.index as i" /></t-for><t-var name="name">-</t-var>`
+	const loopWant = `[0:a|-|-|-][1:b&amp;|-|-|-]-`
+	for run := 0; run < 2; run++ {
+		got, err := toupee.Render(fills, ctx, loader)
+		if got != fillsWant || err != nil {
+			t.Fatalf("run %d: fills = %q, %v; want %q", run, got, err, fillsWant)
+		}
+		got, err = toupee.Render(loop, ctx, loader)
+		if got != loopWant || err != nil {
+			t.Fatalf("run %d: loop = %q, %v; want %q", run, got, err, loopWant)
+		}
+		got, err = toupee.Render(`<t-for item in items><t-include template="bad" isolated context="item.name as name" /></t-for>`, ctx, loader)
+		wantRenderError(t, got, err, toupee.RenderError{Line: 1, Column: 22, Kind: toupee.UndefinedVariable, Message: "secret"})
+	}
+	if !reflect.DeepEqual(ctx, want) {
+		t.Errorf("Render modified the caller's Context:\n got %#v\nwant %#v", ctx, want)
+	}
+}
