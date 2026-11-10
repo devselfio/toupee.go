@@ -1,5 +1,7 @@
 package toupee
 
+import "strconv"
+
 // ValueKind selects which payload of a Value is meaningful.
 type ValueKind uint8
 
@@ -26,4 +28,22 @@ type Value struct {
 	Float   float64
 	List    []Value
 	Map     map[string]Value
+}
+
+// scalarString returns v's text: a string unchanged, a boolean as true or
+// false, an integer in signed decimal and a float in the shortest fixed
+// decimal form, without an exponent. Nil, lists and maps, empty or not,
+// have no text.
+func scalarString(v Value) (string, bool) {
+	switch v.Kind {
+	case KindString:
+		return v.String, true
+	case KindBoolean:
+		return strconv.FormatBool(v.Boolean), true
+	case KindInteger:
+		return strconv.FormatInt(v.Integer, 10), true
+	case KindFloat:
+		return strconv.FormatFloat(v.Float, 'f', -1, 64), true
+	}
+	return "", false
 }

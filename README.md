@@ -5,10 +5,37 @@ template engine, measured case by case against Toupee's own spec corpus.
 
     import "github.com/devselfio/toupee.go" // package toupee
 
-**Status: bootstrap.** The public render boundary is fixed and the
-measurement is in place, but `Render` does not implement any template
-semantics yet: it returns `"", nil` and never calls the loader. Rendering
-arrives in later changes, each measured by the corpus below.
+**Status: variables, raw output and comments.** `Render` implements literal
+text and HTML, `t-var`, `t-raw` and `t-comment`:
+
+- **Paths.** `name="a.b.0"` follows map keys and decimal list indices from
+  `Data`; a segment `$(expr)` is replaced by the scalar `expr` resolves to
+  from the root, used as one key, and may nest.
+- **Values.** A string renders unchanged, a boolean as `true`/`false`, an
+  integer in signed decimal and a float in the shortest fixed decimal form
+  (no exponent). Nil, lists and maps have no text.
+- **Defaults.** A scalar value is used even when it is `""`, `false` or 0.
+  Otherwise a block element's body is rendered, even an empty one; a
+  self-closing element is an `UndefinedVariable` error whose `Message` is
+  the requested path.
+- **Escaping.** `t-var` escapes its result, a rendered default included,
+  mapping exactly `&`, `<`, `>`, `"` and `'` to `&amp;`, `&lt;`, `&gt;`,
+  `&quot;` and `&#x27;`; `t-raw` writes it unchanged. Every other byte of
+  the template is kept as it is: there is no HTML parsing or normalising.
+- **Comments.** `<t-comment>…</t-comment>` and `<t-comment />` produce
+  nothing; their bodies are not parsed.
+- **Errors.** A malformed element is a `MalformedElement` error, an
+  undefined variable an `UndefinedVariable` error, each at the line and
+  column of the element's `<`, counted in bytes. A failing `Render` returns
+  `""` and the error, never partial output.
+
+The other elements are not implemented yet. Until each is, an input that
+uses control flow (`t-if`, `t-elif`, `t-else`, `t-for`), `t-let`,
+`t-debug`, `t-attr`, `t-slot`, composition (`t-include`, `t-extend`,
+`t-define`), a `transform=` attribute or a `t-var:`/`t-attr:` binding on an
+ordinary tag renders as `"", nil`, as the bootstrap did. This is a
+temporary measure, not Toupee's semantics. `Render` does not yet call the
+loader.
 
 ## API
 
@@ -60,7 +87,8 @@ ctx := toupee.Context{
 	Attrs: map[string]string{"class": "wide"},
 	Slots: map[string]string{"": "body"},
 }
-out, err := toupee.Render(`<t-include template="card" />`, ctx, loader)
+out, err := toupee.Render(`<p><t-var name="title" />: <t-var name="count" /></p>`, ctx, loader)
+// out == "<p>Grid: 3</p>", err == nil
 ```
 
 The complete, compiled version of this example is `Example` in
@@ -116,9 +144,9 @@ Subtests are `TestSpec/<file without .test>/L<line>`, so
 still validated against the whole corpus, so a filtered run does not call
 real entries stale. An unfiltered run logs the measurement:
 
-    corpus: 14 of 519 cases pass
+    corpus: 120 of 519 cases pass
 
-That is the honest line for the bootstrap stub; 505 cases are on the list.
+399 cases are on the list.
 A filtered run reports its selected count instead.
 
 **A drift check.** `make spec-drift` runs `cmd/driftcheck`. It checks the
