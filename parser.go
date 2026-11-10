@@ -36,9 +36,9 @@ type parser struct {
 // parse parses source. A source whose first non-whitespace bytes open a
 // t-extend is an extend: its remaining content is only definitions. When the
 // parser meets a construct this port does not yet implement (debug or a
-// transform= attribute) it stops and returns a result marked deferred;
-// Render then keeps the bootstrap behaviour for the whole render. A
-// malformed element met before that is still an error.
+// transform= attribute on t-let) it stops and returns a result marked
+// deferred; Render then keeps the bootstrap behaviour for the whole render.
+// A malformed element met before that is still an error.
 func parse(source string) (parsedTemplate, error) {
 	p := &parser{source: source}
 	start := len(source) - len(strings.TrimLeft(source, " \t\r\n"))
@@ -193,11 +193,10 @@ func (p *parser) parseVariable(start, end int, raw bool) (variable, int, error) 
 	if !ok {
 		return variable{}, 0, p.errorAt(start, MalformedElement, "missing 'name' attribute")
 	}
-	if _, ok := attrValue(tag, "transform"); ok {
-		p.deferred = true
-		return variable{}, 0, nil
-	}
 	v := variable{name: name, raw: raw, pos: start}
+	if spec, ok := attrValue(tag, "transform"); ok {
+		v.transforms = parseTransformSpec(spec)
+	}
 	next := start + tagEnd + 1
 	if !selfClosing {
 		closer := varCloser
