@@ -1,6 +1,8 @@
-package toupee
+package toupee_test
 
 import (
+	toupee "github.com/devselfio/toupee.go"
+
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,8 +20,8 @@ import (
 // name. data is merged when an object; attrs, slots and templates are read
 // when objects, a non-string entry becoming "". Other roots and members are
 // ignored. Every map is new, so nothing is shared between cases.
-func decodeSpecContext(src string, templates []specTemplate) (Context, Loader, error) {
-	ctx := Context{Data: map[string]Value{}, Attrs: map[string]string{}, Slots: map[string]string{}}
+func decodeSpecContext(src string, templates []specTemplate) (toupee.Context, toupee.Loader, error) {
+	ctx := toupee.Context{Data: map[string]toupee.Value{}, Attrs: map[string]string{}, Slots: map[string]string{}}
 	sources := map[string]string{}
 	for _, t := range templates {
 		sources[t.name] = t.source
@@ -27,7 +29,7 @@ func decodeSpecContext(src string, templates []specTemplate) (Context, Loader, e
 	loader := func(name string) (string, error) {
 		src, ok := sources[name]
 		if !ok {
-			return "", &RenderError{Kind: TemplateNotFound, Message: name}
+			return "", &toupee.RenderError{Kind: toupee.TemplateNotFound, Message: name}
 		}
 		return src, nil
 	}
@@ -39,10 +41,10 @@ func decodeSpecContext(src string, templates []specTemplate) (Context, Loader, e
 	dec.UseNumber()
 	var root any
 	if err := dec.Decode(&root); err != nil {
-		return Context{}, nil, fmt.Errorf("context: %w", err)
+		return toupee.Context{}, nil, fmt.Errorf("context: %w", err)
 	}
 	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
-		return Context{}, nil, fmt.Errorf("context: trailing data after the JSON value")
+		return toupee.Context{}, nil, fmt.Errorf("context: trailing data after the JSON value")
 	}
 	obj, ok := root.(map[string]any)
 	if !ok {
@@ -52,7 +54,7 @@ func decodeSpecContext(src string, templates []specTemplate) (Context, Loader, e
 		for k, v := range data {
 			val, err := jsonValue(v)
 			if err != nil {
-				return Context{}, nil, fmt.Errorf("context: data.%s: %w", k, err)
+				return toupee.Context{}, nil, fmt.Errorf("context: data.%s: %w", k, err)
 			}
 			ctx.Data[k] = val
 		}
@@ -76,63 +78,63 @@ func decodeSpecContext(src string, templates []specTemplate) (Context, Loader, e
 // jsonValue converts a value decoded with UseNumber into a Value. A number
 // without '.', 'e' or 'E' is an int64, parsed directly; any other number is a
 // float64. A number out of range is an error, never a lossy coercion.
-func jsonValue(v any) (Value, error) {
+func jsonValue(v any) (toupee.Value, error) {
 	switch v := v.(type) {
 	case nil:
-		return Value{}, nil
+		return toupee.Value{}, nil
 	case string:
-		return Value{Kind: KindString, String: v}, nil
+		return toupee.Value{Kind: toupee.KindString, String: v}, nil
 	case bool:
-		return Value{Kind: KindBoolean, Boolean: v}, nil
+		return toupee.Value{Kind: toupee.KindBoolean, Boolean: v}, nil
 	case json.Number:
 		s := string(v)
 		if strings.ContainsAny(s, ".eE") {
 			f, err := strconv.ParseFloat(s, 64)
 			if err != nil || math.IsInf(f, 0) {
-				return Value{}, fmt.Errorf("float %s out of range: %v", s, err)
+				return toupee.Value{}, fmt.Errorf("float %s out of range: %v", s, err)
 			}
-			return Value{Kind: KindFloat, Float: f}, nil
+			return toupee.Value{Kind: toupee.KindFloat, Float: f}, nil
 		}
 		n, err := strconv.ParseInt(s, 10, 64)
 		if err != nil {
-			return Value{}, fmt.Errorf("integer %s: %w", s, err)
+			return toupee.Value{}, fmt.Errorf("integer %s: %w", s, err)
 		}
-		return Value{Kind: KindInteger, Integer: n}, nil
+		return toupee.Value{Kind: toupee.KindInteger, Integer: n}, nil
 	case []any:
-		list := make([]Value, len(v))
+		list := make([]toupee.Value, len(v))
 		for i, item := range v {
 			val, err := jsonValue(item)
 			if err != nil {
-				return Value{}, fmt.Errorf("[%d]: %w", i, err)
+				return toupee.Value{}, fmt.Errorf("[%d]: %w", i, err)
 			}
 			list[i] = val
 		}
-		return Value{Kind: KindList, List: list}, nil
+		return toupee.Value{Kind: toupee.KindList, List: list}, nil
 	case map[string]any:
-		m := make(map[string]Value, len(v))
+		m := make(map[string]toupee.Value, len(v))
 		for k, item := range v {
 			val, err := jsonValue(item)
 			if err != nil {
-				return Value{}, fmt.Errorf("%s: %w", k, err)
+				return toupee.Value{}, fmt.Errorf("%s: %w", k, err)
 			}
 			m[k] = val
 		}
-		return Value{Kind: KindMap, Map: m}, nil
+		return toupee.Value{Kind: toupee.KindMap, Map: m}, nil
 	default:
-		return Value{}, fmt.Errorf("unexpected JSON value of type %T", v)
+		return toupee.Value{}, fmt.Errorf("unexpected JSON value of type %T", v)
 	}
 }
 
 func TestDecodeSpecContext(t *testing.T) {
-	str := func(s string) Value { return Value{Kind: KindString, String: s} }
-	i64 := func(n int64) Value { return Value{Kind: KindInteger, Integer: n} }
-	f64 := func(f float64) Value { return Value{Kind: KindFloat, Float: f} }
-	empty := Context{Data: map[string]Value{}, Attrs: map[string]string{}, Slots: map[string]string{}}
+	str := func(s string) toupee.Value { return toupee.Value{Kind: toupee.KindString, String: s} }
+	i64 := func(n int64) toupee.Value { return toupee.Value{Kind: toupee.KindInteger, Integer: n} }
+	f64 := func(f float64) toupee.Value { return toupee.Value{Kind: toupee.KindFloat, Float: f} }
+	empty := toupee.Context{Data: map[string]toupee.Value{}, Attrs: map[string]string{}, Slots: map[string]string{}}
 
 	tests := []struct {
 		name string
 		src  string
-		want Context
+		want toupee.Context
 	}{
 		{name: "empty", src: "", want: empty},
 		{name: "non-object root ignored", src: `[1, 2]`, want: empty},
@@ -143,9 +145,9 @@ func TestDecodeSpecContext(t *testing.T) {
 			src: `{"data": {"s": "x", "t": true, "f": false, "n": null,
 				"max": 9223372036854775807, "min": -9223372036854775808,
 				"int": 5, "five": 5.0, "exp": 1e3, "negexp": 25E-1, "neg0": -0}}`,
-			want: Context{
-				Data: map[string]Value{
-					"s": str("x"), "t": {Kind: KindBoolean, Boolean: true}, "f": {Kind: KindBoolean}, "n": {},
+			want: toupee.Context{
+				Data: map[string]toupee.Value{
+					"s": str("x"), "t": {Kind: toupee.KindBoolean, Boolean: true}, "f": {Kind: toupee.KindBoolean}, "n": {},
 					"max": i64(math.MaxInt64), "min": i64(math.MinInt64),
 					"int": i64(5), "five": f64(5), "exp": f64(1000), "negexp": f64(2.5), "neg0": i64(0),
 				},
@@ -155,12 +157,12 @@ func TestDecodeSpecContext(t *testing.T) {
 		{
 			name: "nested lists and maps",
 			src:  `{"data": {"l": [1, "a", [], {"k": [null, 2.5]}], "m": {"inner": {"x": false}}, "e": {}}}`,
-			want: Context{
-				Data: map[string]Value{
-					"l": {Kind: KindList, List: []Value{i64(1), str("a"), {Kind: KindList, List: []Value{}},
-						{Kind: KindMap, Map: map[string]Value{"k": {Kind: KindList, List: []Value{{}, f64(2.5)}}}}}},
-					"m": {Kind: KindMap, Map: map[string]Value{"inner": {Kind: KindMap, Map: map[string]Value{"x": {Kind: KindBoolean}}}}},
-					"e": {Kind: KindMap, Map: map[string]Value{}},
+			want: toupee.Context{
+				Data: map[string]toupee.Value{
+					"l": {Kind: toupee.KindList, List: []toupee.Value{i64(1), str("a"), {Kind: toupee.KindList, List: []toupee.Value{}},
+						{Kind: toupee.KindMap, Map: map[string]toupee.Value{"k": {Kind: toupee.KindList, List: []toupee.Value{{}, f64(2.5)}}}}}},
+					"m": {Kind: toupee.KindMap, Map: map[string]toupee.Value{"inner": {Kind: toupee.KindMap, Map: map[string]toupee.Value{"x": {Kind: toupee.KindBoolean}}}}},
+					"e": {Kind: toupee.KindMap, Map: map[string]toupee.Value{}},
 				},
 				Attrs: map[string]string{}, Slots: map[string]string{},
 			},
@@ -168,8 +170,8 @@ func TestDecodeSpecContext(t *testing.T) {
 		{
 			name: "attrs and slots with empty names and non-strings",
 			src:  `{"attrs": {"": "a", "class": "x", "n": 1, "b": true}, "slots": {"": "body", "side": null, "l": []}}`,
-			want: Context{
-				Data:  map[string]Value{},
+			want: toupee.Context{
+				Data:  map[string]toupee.Value{},
 				Attrs: map[string]string{"": "a", "class": "x", "n": "", "b": ""},
 				Slots: map[string]string{"": "body", "side": "", "l": ""},
 			},
@@ -197,7 +199,7 @@ func TestDecodeSpecContextIntegerPrecision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := ctx.Data["n"]; got.Kind != KindInteger || got.Integer != 9007199254740993 {
+	if got := ctx.Data["n"]; got.Kind != toupee.KindInteger || got.Integer != 9007199254740993 {
 		t.Errorf("got %+v, want integer 9007199254740993", got)
 	}
 }
@@ -242,8 +244,8 @@ func TestDecodeSpecContextLoader(t *testing.T) {
 		}
 	}
 	_, err = loader("nope.html")
-	var re *RenderError
-	if !errors.As(err, &re) || re.Kind != TemplateNotFound || re.Message != "nope.html" {
+	var re *toupee.RenderError
+	if !errors.As(err, &re) || re.Kind != toupee.TemplateNotFound || re.Message != "nope.html" {
 		t.Errorf("loader(missing) error = %v, want *RenderError{Kind: TemplateNotFound, Message: \"nope.html\"}", err)
 	}
 }
@@ -259,7 +261,7 @@ func TestDecodeSpecContextIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctxA.Data["leak"] = Value{}
+	ctxA.Data["leak"] = toupee.Value{}
 	ctxA.Slots["leak"] = "x"
 	if len(ctxB.Data) != 0 || len(ctxB.Attrs) != 0 || len(ctxB.Slots) != 0 {
 		t.Errorf("second context not empty: %+v", ctxB)

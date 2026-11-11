@@ -1,4 +1,4 @@
-package toupee
+package engine
 
 // conditionSource is where a condition reads its subject from.
 type conditionSource uint8

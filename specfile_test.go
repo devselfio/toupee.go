@@ -1,6 +1,8 @@
-package toupee
+package toupee_test
 
 import (
+	toupee "github.com/devselfio/toupee.go"
+
 	"errors"
 	"fmt"
 	"reflect"
@@ -178,7 +180,7 @@ func validateSpecCase(c specCase) error {
 		return errors.New("error-line/-column/-kind/-message without <!-- error: KIND -->")
 	}
 	if c.errorName != nil {
-		if _, ok := diagnosticKinds[ErrorKind(*c.errorName)]; !ok {
+		if _, ok := diagnosticKinds[toupee.ErrorKind(*c.errorName)]; !ok {
 			return fmt.Errorf("unknown error kind %q", *c.errorName)
 		}
 	}
@@ -420,7 +422,7 @@ func TestSpecInvocationCoverage(t *testing.T) {
 	for _, f := range loadCorpus(t) {
 		for _, c := range f.cases {
 			total++
-			render := func(input string, ctx Context, loader Loader) (string, error) {
+			render := func(input string, ctx toupee.Context, loader toupee.Loader) (string, error) {
 				calls[c.id]++
 				return "", nil
 			}
@@ -457,9 +459,9 @@ func TestCheckCase(t *testing.T) {
 		s.errorKind, s.errorMessage = strp("undefined_variable"), strp("titl")
 	}
 	ret := func(out string, err error) renderFunc {
-		return func(string, Context, Loader) (string, error) { return out, err }
+		return func(string, toupee.Context, toupee.Loader) (string, error) { return out, err }
 	}
-	good := &RenderError{Line: 2, Column: 3, Kind: UndefinedVariable, Message: "titl"}
+	good := &toupee.RenderError{Line: 2, Column: 3, Kind: toupee.UndefinedVariable, Message: "titl"}
 
 	tests := []struct {
 		name    string
@@ -471,30 +473,30 @@ func TestCheckCase(t *testing.T) {
 		{"output differs", outCase, ret("wan", nil), "want"},
 		{"output trailing newline", outCase, ret("want\n", nil), "want"},
 		{"output with error", outCase, ret("want", good), "unexpected error"},
-		{"error kind only", errCase(nil), ret("", &RenderError{Kind: UndefinedVariable}), ""},
+		{"error kind only", errCase(nil), ret("", &toupee.RenderError{Kind: toupee.UndefinedVariable}), ""},
 		{"error wrapped", errCase(nil), ret("", fmtWrap(good)), ""},
 		{"unexpected success", errCase(nil), ret("x", nil), "success"},
 		{"not a RenderError", errCase(nil), ret("", errors.New("UndefinedVariable")), "RenderError"},
-		{"wrong kind", errCase(nil), ret("", &RenderError{Kind: TemplateNotFound}), "TemplateNotFound"},
+		{"wrong kind", errCase(nil), ret("", &toupee.RenderError{Kind: toupee.TemplateNotFound}), "TemplateNotFound"},
 		{"all details match", errCase(full), ret("", good), ""},
-		{"wrong line", errCase(full), ret("", &RenderError{Line: 1, Column: 3, Kind: UndefinedVariable, Message: "titl"}), "line"},
-		{"wrong column", errCase(full), ret("", &RenderError{Line: 2, Column: 4, Kind: UndefinedVariable, Message: "titl"}), "column"},
-		{"message contains expected", errCase(full), ret("", &RenderError{Line: 2, Column: 3, Kind: UndefinedVariable, Message: "titl is undefined"}), "message"},
-		{"message prefix of expected", errCase(full), ret("", &RenderError{Line: 2, Column: 3, Kind: UndefinedVariable, Message: "tit"}), "message"},
-		{"only line given", errCase(func(s *specCase) { s.errorLine = intp(2) }), ret("", &RenderError{Line: 2, Kind: UndefinedVariable, Message: "anything"}), ""},
-		{"only line wrong", errCase(func(s *specCase) { s.errorLine = intp(2) }), ret("", &RenderError{Line: 7, Kind: UndefinedVariable}), "line"},
-		{"only column given", errCase(func(s *specCase) { s.errorColumn = intp(3) }), ret("", &RenderError{Column: 3, Kind: UndefinedVariable}), ""},
-		{"only column wrong", errCase(func(s *specCase) { s.errorColumn = intp(3) }), ret("", &RenderError{Column: 0, Kind: UndefinedVariable}), "column"},
-		{"only diagnostic kind given", errCase(func(s *specCase) { s.errorKind = strp("undefined_variable") }), ret("", &RenderError{Kind: UndefinedVariable}), ""},
+		{"wrong line", errCase(full), ret("", &toupee.RenderError{Line: 1, Column: 3, Kind: toupee.UndefinedVariable, Message: "titl"}), "line"},
+		{"wrong column", errCase(full), ret("", &toupee.RenderError{Line: 2, Column: 4, Kind: toupee.UndefinedVariable, Message: "titl"}), "column"},
+		{"message contains expected", errCase(full), ret("", &toupee.RenderError{Line: 2, Column: 3, Kind: toupee.UndefinedVariable, Message: "titl is undefined"}), "message"},
+		{"message prefix of expected", errCase(full), ret("", &toupee.RenderError{Line: 2, Column: 3, Kind: toupee.UndefinedVariable, Message: "tit"}), "message"},
+		{"only line given", errCase(func(s *specCase) { s.errorLine = intp(2) }), ret("", &toupee.RenderError{Line: 2, Kind: toupee.UndefinedVariable, Message: "anything"}), ""},
+		{"only line wrong", errCase(func(s *specCase) { s.errorLine = intp(2) }), ret("", &toupee.RenderError{Line: 7, Kind: toupee.UndefinedVariable}), "line"},
+		{"only column given", errCase(func(s *specCase) { s.errorColumn = intp(3) }), ret("", &toupee.RenderError{Column: 3, Kind: toupee.UndefinedVariable}), ""},
+		{"only column wrong", errCase(func(s *specCase) { s.errorColumn = intp(3) }), ret("", &toupee.RenderError{Column: 0, Kind: toupee.UndefinedVariable}), "column"},
+		{"only diagnostic kind given", errCase(func(s *specCase) { s.errorKind = strp("undefined_variable") }), ret("", &toupee.RenderError{Kind: toupee.UndefinedVariable}), ""},
 		{
 			"diagnostic kind wrong",
 			errCase(func(s *specCase) {
 				s.errorName, s.errorKind = strp("DuplicateSlotDefinition"), strp("circular_reference")
 			}),
-			ret("", &RenderError{Kind: DuplicateSlotDefinition}), "duplicate_slot",
+			ret("", &toupee.RenderError{Kind: toupee.DuplicateSlotDefinition}), "duplicate_slot",
 		},
-		{"empty expected message matches", errCase(func(s *specCase) { s.errorMessage = strp("") }), ret("", &RenderError{Kind: UndefinedVariable}), ""},
-		{"empty expected message differs", errCase(func(s *specCase) { s.errorMessage = strp("") }), ret("", &RenderError{Kind: UndefinedVariable, Message: "x"}), "message"},
+		{"empty expected message matches", errCase(func(s *specCase) { s.errorMessage = strp("") }), ret("", &toupee.RenderError{Kind: toupee.UndefinedVariable}), ""},
+		{"empty expected message differs", errCase(func(s *specCase) { s.errorMessage = strp("") }), ret("", &toupee.RenderError{Kind: toupee.UndefinedVariable, Message: "x"}), "message"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -519,12 +521,12 @@ func TestCheckCase(t *testing.T) {
 }
 
 func TestDiagnosticKinds(t *testing.T) {
-	want := map[ErrorKind]string{
-		MalformedElement:        "malformed_element",
-		UndefinedVariable:       "undefined_variable",
-		TemplateNotFound:        "template_not_found",
-		DuplicateSlotDefinition: "duplicate_slot",
-		CircularReference:       "circular_reference",
+	want := map[toupee.ErrorKind]string{
+		toupee.MalformedElement:        "malformed_element",
+		toupee.UndefinedVariable:       "undefined_variable",
+		toupee.TemplateNotFound:        "template_not_found",
+		toupee.DuplicateSlotDefinition: "duplicate_slot",
+		toupee.CircularReference:       "circular_reference",
 	}
 	if !reflect.DeepEqual(diagnosticKinds, want) {
 		t.Errorf("got %v, want %v", diagnosticKinds, want)

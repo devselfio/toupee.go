@@ -1,4 +1,4 @@
-package toupee
+package toupee_test
 
 import (
 	"errors"
