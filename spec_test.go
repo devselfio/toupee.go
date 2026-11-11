@@ -1,6 +1,8 @@
-package toupee
+package toupee_test
 
 import (
+	toupee "github.com/devselfio/toupee.go"
+
 	"errors"
 	"fmt"
 	"os"
@@ -16,12 +18,12 @@ const specDir = "testdata/spec"
 
 // diagnosticKinds maps each symbolic error kind to the snake_case spelling
 // of an error-kind directive. It is the runner's, not a public API.
-var diagnosticKinds = map[ErrorKind]string{
-	MalformedElement:        "malformed_element",
-	UndefinedVariable:       "undefined_variable",
-	TemplateNotFound:        "template_not_found",
-	DuplicateSlotDefinition: "duplicate_slot",
-	CircularReference:       "circular_reference",
+var diagnosticKinds = map[toupee.ErrorKind]string{
+	toupee.MalformedElement:        "malformed_element",
+	toupee.UndefinedVariable:       "undefined_variable",
+	toupee.TemplateNotFound:        "template_not_found",
+	toupee.DuplicateSlotDefinition: "duplicate_slot",
+	toupee.CircularReference:       "circular_reference",
 }
 
 // preparedCase is a case ready to render: its identity, its fixture and the
@@ -29,12 +31,12 @@ var diagnosticKinds = map[ErrorKind]string{
 type preparedCase struct {
 	id     caseID
 	spec   specCase
-	ctx    Context
-	loader Loader
+	ctx    toupee.Context
+	loader toupee.Loader
 }
 
 // renderFunc is Render's signature, so tests can inject a renderer.
-type renderFunc func(string, Context, Loader) (string, error)
+type renderFunc func(string, toupee.Context, toupee.Loader) (string, error)
 
 // specFile is one parsed and prepared corpus file.
 type specFile struct {
@@ -54,7 +56,7 @@ func prepareCase(c specCase) (preparedCase, error) {
 
 // checkCase renders c with Render and returns nil when the result is what
 // the case expects.
-func checkCase(c preparedCase) error { return checkCaseWith(c, Render) }
+func checkCase(c preparedCase) error { return checkCaseWith(c, toupee.Render) }
 
 // checkCaseWith renders c once with render. An output case needs a nil
 // error and byte-equal output. An error case needs a *RenderError of the
@@ -74,11 +76,11 @@ func checkCaseWith(c preparedCase, render renderFunc) error {
 		}
 		return nil
 	}
-	want := ErrorKind(*s.errorName)
+	want := toupee.ErrorKind(*s.errorName)
 	if err == nil {
 		return fail("expected error %s but got success with output %q", want, out)
 	}
-	var re *RenderError
+	var re *toupee.RenderError
 	if !errors.As(err, &re) {
 		return fail("expected a *RenderError of kind %s, got %T: %v", want, err, err)
 	}

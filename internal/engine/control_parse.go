@@ -1,4 +1,4 @@
-package toupee
+package engine
 
 import "strings"
 

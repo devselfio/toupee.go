@@ -1,4 +1,4 @@
-package toupee
+package engine
 
 // nodeKind selects which field of a node is meaningful.
 type nodeKind uint8

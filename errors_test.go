@@ -1,6 +1,8 @@
-package toupee
+package toupee_test
 
 import (
+	toupee "github.com/devselfio/toupee.go"
+
 	"errors"
 	"fmt"
 	"strings"
@@ -8,12 +10,12 @@ import (
 )
 
 func TestErrorKinds(t *testing.T) {
-	want := map[ErrorKind]string{
-		MalformedElement:        "MalformedElement",
-		UndefinedVariable:       "UndefinedVariable",
-		TemplateNotFound:        "TemplateNotFound",
-		DuplicateSlotDefinition: "DuplicateSlotDefinition",
-		CircularReference:       "CircularReference",
+	want := map[toupee.ErrorKind]string{
+		toupee.MalformedElement:        "MalformedElement",
+		toupee.UndefinedVariable:       "UndefinedVariable",
+		toupee.TemplateNotFound:        "TemplateNotFound",
+		toupee.DuplicateSlotDefinition: "DuplicateSlotDefinition",
+		toupee.CircularReference:       "CircularReference",
 	}
 	if len(want) != 5 {
 		t.Fatalf("want five distinct kinds, got %d", len(want))
@@ -26,20 +28,20 @@ func TestErrorKinds(t *testing.T) {
 }
 
 func TestRenderErrorAs(t *testing.T) {
-	var err error = &RenderError{Line: 3, Column: 7, Kind: UndefinedVariable, Message: "user.name"}
+	var err error = &toupee.RenderError{Line: 3, Column: 7, Kind: toupee.UndefinedVariable, Message: "user.name"}
 	wrapped := fmt.Errorf("rendering page: %w", err)
-	var re *RenderError
+	var re *toupee.RenderError
 	if !errors.As(wrapped, &re) {
 		t.Fatal("errors.As did not find the *RenderError")
 	}
-	if re.Line != 3 || re.Column != 7 || re.Kind != UndefinedVariable || re.Message != "user.name" {
+	if re.Line != 3 || re.Column != 7 || re.Kind != toupee.UndefinedVariable || re.Message != "user.name" {
 		t.Errorf("got %+v, want line 3, column 7, UndefinedVariable, %q", *re, "user.name")
 	}
 }
 
 func TestRenderErrorPreservesMessage(t *testing.T) {
 	msg := "  odd\tmessage: <t-var>  "
-	re := &RenderError{Kind: MalformedElement, Message: msg}
+	re := &toupee.RenderError{Kind: toupee.MalformedElement, Message: msg}
 	if re.Message != msg {
 		t.Errorf("Message changed to %q", re.Message)
 	}
@@ -51,23 +53,23 @@ func TestRenderErrorPreservesMessage(t *testing.T) {
 func TestRenderErrorString(t *testing.T) {
 	tests := []struct {
 		name     string
-		err      *RenderError
+		err      *toupee.RenderError
 		contains []string
 		absent   []string
 	}{
 		{
 			name:     "with location",
-			err:      &RenderError{Line: 2, Column: 5, Kind: CircularReference, Message: "a -> b -> a"},
+			err:      &toupee.RenderError{Line: 2, Column: 5, Kind: toupee.CircularReference, Message: "a -> b -> a"},
 			contains: []string{"CircularReference", "a -> b -> a", "2", "5"},
 		},
 		{
 			name:     "line only",
-			err:      &RenderError{Line: 9, Kind: TemplateNotFound, Message: "card"},
+			err:      &toupee.RenderError{Line: 9, Kind: toupee.TemplateNotFound, Message: "card"},
 			contains: []string{"TemplateNotFound", "card", "9"},
 		},
 		{
 			name:     "no location",
-			err:      &RenderError{Kind: DuplicateSlotDefinition, Message: "body"},
+			err:      &toupee.RenderError{Kind: toupee.DuplicateSlotDefinition, Message: "body"},
 			contains: []string{"DuplicateSlotDefinition", "body"},
 			absent:   []string{"0"},
 		},

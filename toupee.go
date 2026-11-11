@@ -22,22 +22,68 @@
 // debug option off, the default. A context dump would require a render
 // option that this port does not offer. An unclosed debug opening tag is a
 // MalformedElement with the message "unclosed <t-debug> tag".
+//
+// # Layout
+//
+// This file, toupee.go, is the root package's only source file and holds
+// its entry points. The implementation (the parser and its node types,
+// control flow, composition, lookup, indentation, HTML escaping and the
+// transforms) lives in internal/engine. The root's types are aliases of
+// that package's and its constants re-export that package's, so values and
+// errors pass between the two unchanged; callers import only this package.
 package toupee
+
+import "github.com/devselfio/toupee.go/internal/engine"
 
 // Context is the state a template renders against. The zero Context means
 // empty data, attrs and slots. Map keys may be empty; the empty slot name is
-// the unnamed slot.
-type Context struct {
-	Data  map[string]Value
-	Attrs map[string]string
-	Slots map[string]string
-}
+// the unnamed slot. Its fields are Data map[string]Value, Attrs
+// map[string]string and Slots map[string]string.
+type Context = engine.Context
 
 // Loader returns the source of the named template. For a name it does not
 // know it returns ("", &RenderError{Kind: TemplateNotFound, Message: name});
 // any other error is a loader failure, distinct from a missing name. An
 // empty source is a found, empty template. A nil Loader knows no templates.
-type Loader func(name string) (string, error)
+type Loader = engine.Loader
+
+// Value is a template datum. The zero Value is nil. Only the payload field
+// selected by Kind is meaningful; the others are ignored, whatever they hold.
+// Lists and maps contain Values recursively. Integer and Float match
+// Toupee's signed 64-bit integer and 64-bit float.
+type Value = engine.Value
+
+// ValueKind selects which payload of a Value is meaningful.
+type ValueKind = engine.ValueKind
+
+// The seven value forms ADR 0008 fixes for the template boundary.
+const (
+	KindNil     = engine.KindNil
+	KindString  = engine.KindString
+	KindBoolean = engine.KindBoolean
+	KindInteger = engine.KindInteger
+	KindFloat   = engine.KindFloat
+	KindList    = engine.KindList
+	KindMap     = engine.KindMap
+)
+
+// RenderError is a render failure. Line and Column are 1-based when known
+// and 0 when not. Message is the unformatted detail, kept exactly. The text
+// of Error is for people; programs read the fields.
+type RenderError = engine.RenderError
+
+// ErrorKind is the symbolic name of a render error, as the corpus's
+// "error: KIND" directive spells it.
+type ErrorKind = engine.ErrorKind
+
+// The error kinds Toupee v0.4.0's corpus uses.
+const (
+	MalformedElement        = engine.MalformedElement
+	UndefinedVariable       = engine.UndefinedVariable
+	TemplateNotFound        = engine.TemplateNotFound
+	DuplicateSlotDefinition = engine.DuplicateSlotDefinition
+	CircularReference       = engine.CircularReference
+)
 
 // Render renders input against ctx, resolving named templates through
 // loader. It reads its arguments without modifying them and keeps no state
@@ -51,14 +97,5 @@ type Loader func(name string) (string, error)
 //
 // On failure Render returns "" and the error, never partial output.
 func Render(input string, ctx Context, loader Loader) (string, error) {
-	tmpl, err := parse(input)
-	if err != nil {
-		return "", err
-	}
-	r := &renderer{source: input, loader: loader, loads: new(int)}
-	out, err := r.renderNodes(tmpl.nodes, newRenderContext(ctx))
-	if err != nil {
-		return "", err
-	}
-	return out, nil
+	return engine.Render(input, ctx, loader)
 }
