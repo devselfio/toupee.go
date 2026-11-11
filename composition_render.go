@@ -23,7 +23,7 @@ type activeFill struct {
 }
 
 // renderTemplate parses source, the template name, and renders it in ctx
-// at depth. A source that uses a deferred construct is errDeferred.
+// at depth.
 func (r *renderer) renderTemplate(source, name string, ctx *renderContext, depth int) (string, error) {
 	if depth > maxDepth {
 		return "", errorAt(source, 0, CircularReference, name)
@@ -31,9 +31,6 @@ func (r *renderer) renderTemplate(source, name string, ctx *renderContext, depth
 	tmpl, err := parse(source)
 	if err != nil {
 		return "", err
-	}
-	if tmpl.deferred {
-		return "", errDeferred
 	}
 	child := &renderer{source: source, loader: r.loader, loads: r.loads, templateName: name, depth: depth, fills: r.fills}
 	return child.renderNodes(tmpl.nodes, ctx)
@@ -172,9 +169,6 @@ func (r *renderer) renderSlot(s slot, ctx *renderContext, out *bytes.Buffer) err
 	if err != nil {
 		return err
 	}
-	if tmpl.deferred {
-		return errDeferred
-	}
 	child := cloneRenderContext(ctx)
 	if parked, ok := ctx.slots[parkedSlot]; ok && s.name == "" {
 		child.slots = maps.Clone(ctx.slots)
@@ -242,9 +236,6 @@ func (r *renderer) resolveExtendChain(name string, slots map[string]string, pos 
 		tmpl, err := parse(cur.source)
 		if err != nil {
 			return "", err
-		}
-		if tmpl.deferred {
-			return "", errDeferred
 		}
 		if len(tmpl.nodes) == 0 {
 			return "", nil

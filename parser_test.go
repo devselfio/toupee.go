@@ -63,14 +63,27 @@ func TestParseNodes(t *testing.T) {
 		{"let empty transform attribute", `<t-let transform="" name="s">a</t-let>`, []node{
 			{kind: letNode, let: &letBinding{pos: 0, name: "s", body: []node{text("a")}}},
 		}},
+		// t-debug yields no node. It consumes only its opening tag, matched
+		// by the prefix <t-debug with no name boundary, as upstream does,
+		// and leaves the text on both sides, whitespace included.
+		{"debug self-closing", "before<t-debug />after", []node{text("before"), text("after")}},
+		{"debug self-closing no space", "before<t-debug/>after", []node{text("before"), text("after")}},
+		{"debug opening tag", "before<t-debug>after", []node{text("before"), text("after")}},
+		{"debug body and closer stay text", "a<t-debug>body</t-debug>b", []node{text("a"), text("body</t-debug>b")}},
+		{"debug quoted >", `a<t-debug note=">" />b`, []node{text("a"), text("b")}},
+		{"debug prefix without boundary", "a<t-debugger>b", []node{text("a"), text("b")}},
+		{"debug upper case is literal", "a<T-debug>b", []node{text("a<T-debug>b")}},
+		{"debug adjacent", "<t-debug /><t-debug>", nil},
+		{"debug keeps whitespace", "a \n<t-debug />\n b", []node{text("a \n"), text("\n b")}},
+		{"debug in a comment", "a<t-comment><t-debug</t-comment>b", []node{text("a"), text("b")}},
+		{"debug in a body", `<t-var name="x">a<t-debug />b</t-var>`, []node{
+			vr(variable{name: "x", hasBody: true, pos: 0, body: []node{text("a"), text("b")}}),
+		}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := parse(tt.input)
 			if err != nil {
 				t.Fatal(err)
-			}
-			if got.deferred {
-				t.Fatal("unexpectedly deferred")
 			}
 			if !reflect.DeepEqual(got.nodes, tt.want) {
 				t.Errorf("parse(%q) =\n%#v\nwant\n%#v", tt.input, got.nodes, tt.want)
@@ -79,20 +92,37 @@ func TestParseNodes(t *testing.T) {
 	}
 }
 
-func TestParseDeferred(t *testing.T) {
-	for _, input := range []string{
-		`<t-for x in y><t-debug /></t-for>`,
-		`<t-if var="y">a<t-elif var="z" /><t-debug /></t-if>`,
-		`a<t-var name="x">b<t-debug /></t-var>`,
-		`<t-include template="c"><t-debug /></t-include>`,
-		`<t-extend template="c"><t-define><t-if var="x"><t-debug /></t-if></t-define>`,
-		`<t-slot><t-for x in y><t-debug /></t-for></t-slot>`,
+// TestParseSupported parses t-debug nested in each enclosing construct: the
+// enclosing node is kept, with the text around the debug tag in its body.
+func TestParseSupported(t *testing.T) {
+	for _, tt := range []struct {
+		input string
+		kind  nodeKind
+	}{
+		{`<t-for x in y><t-debug /></t-for>`, loopNode},
+		{`<t-if var="y">a<t-elif var="z" /><t-debug /></t-if>`, conditionalNode},
+		{`a<t-var name="x">b<t-debug /></t-var>`, variableNode},
+		{`<t-include template="c"><t-debug /></t-include>`, includeNode},
+		{`<t-extend template="c"><t-define><t-if var="x"><t-debug /></t-if></t-define>`, extendNode},
+		{`<t-slot><t-for x in y><t-debug /></t-for></t-slot>`, slotNode},
 	} {
-		got, err := parse(input)
-		if err != nil || !got.deferred || got.nodes != nil {
-			t.Errorf("parse(%q) = %+v, %v; want deferred with no nodes", input, got, err)
+		got, err := parse(tt.input)
+		if err != nil || len(got.nodes) == 0 || got.nodes[len(got.nodes)-1].kind != tt.kind {
+			t.Errorf("parse(%q) = %+v, %v; want a last node of kind %d", tt.input, got, err, tt.kind)
 		}
 	}
+	got, err := parse(`<t-for x in y>a<t-debug />b</t-for>`)
+	if err != nil || len(got.nodes) != 1 || got.nodes[0].kind != loopNode {
+		t.Fatalf("parse loop = %+v, %v", got, err)
+	}
+	if body := got.nodes[0].loop.body; !reflect.DeepEqual(body, []node{{kind: textNode, text: "a"}, {kind: textNode, text: "b"}}) {
+		t.Errorf("loop body = %#v; want text a, text b", body)
+	}
+}
+
+// TestParseLiteralSyntax parses text that only looks like syntax, and
+// constructs the port implements, without error.
+func TestParseLiteralSyntax(t *testing.T) {
 	for _, input := range []string{
 		`<t-comment><t-for x in="y"></t-comment>`,
 		`<t-if var="y">a</t-if><t-for x in y>b<t-else />c</t-for><t-let name="z">d</t-let>`,
@@ -113,9 +143,8 @@ func TestParseDeferred(t *testing.T) {
 		`<t-include template="c"><t-define name="a"><t-let name="b" transform="upper">c</t-let></t-define></t-include>`,
 		`<t-slot><t-for x in y>a</t-for></t-slot>`,
 	} {
-		got, err := parse(input)
-		if err != nil || got.deferred {
-			t.Errorf("parse(%q) = %+v, %v; want not deferred", input, got, err)
+		if _, err := parse(input); err != nil {
+			t.Errorf("parse(%q): %v", input, err)
 		}
 	}
 }

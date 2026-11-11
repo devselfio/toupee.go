@@ -6,9 +6,10 @@ template engine, measured case by case against Toupee's own spec corpus.
     import "github.com/devselfio/toupee.go" // package toupee
 
 **Status: variables, raw output, comments, conditionals, loops, let,
-composition and transforms.** `Render` implements literal text and HTML,
+composition, transforms and a stripped t-debug: every element of Toupee
+v0.4.0.** `Render` implements literal text and HTML,
 `t-var`, `t-raw`, `t-comment`, `t-if`/`t-elif`/`t-else`, `t-for`,
-`t-let`, `t-include`, `t-extend`, `t-define`, `t-slot`, `t-attr`, attribute
+`t-let`, `t-include`, `t-extend`, `t-define`, `t-slot`, `t-attr`, `t-debug`, attribute
 bindings, and the `transform=` attribute on `t-var`, `t-raw` and `t-let`:
 
 - **Paths.** `name="a.b.0"` follows map keys and decimal list indices from
@@ -112,10 +113,10 @@ bindings, and the `transform=` attribute on `t-var`, `t-raw` and `t-let`:
   iteration. An include or a slot fill renders in its own copy too, so
   its lets end with it. Bindings never reach the caller's `Context`.
 
-The other elements are not implemented yet. Until each is, a render that
-meets `t-debug`, in the input, a loaded template or a slot fill, renders
-as `"", nil`, as the
-bootstrap did. This is a temporary measure, not Toupee's semantics.
+This port has no debug mode. `<t-debug />` and `<t-debug>` are always
+stripped, preserving surrounding text. A context dump would require a render
+option that this port does not offer. An unclosed debug opening tag is a
+`MalformedElement` with the message `unclosed <t-debug> tag`.
 
 ## API
 
@@ -224,9 +225,9 @@ Subtests are `TestSpec/<file without .test>/L<line>`, so
 still validated against the whole corpus, so a filtered run does not call
 real entries stale. An unfiltered run logs the measurement:
 
-    corpus: 518 of 519 cases pass
+    corpus: 519 of 519 cases pass
 
-1 case is on the list.
+No cases are on the known-failures list.
 A filtered run reports its selected count instead.
 
 **A drift check.** `make spec-drift` runs `cmd/driftcheck`. It checks the

@@ -36,11 +36,11 @@ func TestRenderEmpty(t *testing.T) {
 			want:   "y",
 		},
 		{
-			name:   "deferred construct keeps the bootstrap result",
-			input:  `<t-debug />`,
+			name:   "debug is stripped",
+			input:  `a<t-debug />b`,
 			ctx:    toupee.Context{},
 			loader: loader,
-			want:   "",
+			want:   "ab",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -104,15 +104,15 @@ func TestRenderLeavesCallerStateAndLoaderAlone(t *testing.T) {
 			t.Fatalf("run %d: Render = %q, %v; want \"\" and MalformedElement", i, got, err)
 		}
 		got, err = toupee.Render(`<t-var name="title" /><t-if var="n"><t-include template="x" /><t-debug /></t-if>`, ctx, loader)
-		if got != "" || err != nil {
-			t.Fatalf("run %d: deferred Render = %q, %v; want \"\", nil", i, got, err)
+		if got != "&lt;Grid&gt;" || err != nil {
+			t.Fatalf("run %d: debug Render = %q, %v; want \"&lt;Grid&gt;\", nil", i, got, err)
 		}
 	}
 	if !reflect.DeepEqual(ctx, want) {
 		t.Errorf("Render modified the caller's Context:\n got %#v\nwant %#v", ctx, want)
 	}
-	if calls != 0 {
-		t.Errorf("Render called the loader %d times, want 0", calls)
+	if calls != 3 {
+		t.Errorf("Render called the loader %d times, want 3: once per run, for the include", calls)
 	}
 }
 

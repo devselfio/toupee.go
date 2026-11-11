@@ -56,6 +56,10 @@ func TestParseCompositionErrors(t *testing.T) {
 		{"<t-include template=\"a\">\n    <t-define name=\"b\">\n        <p><t-if var=\"x\">y</p>\n    </t-define>\n</t-include>", "missing closing </t-if> tag", 3, 12},
 		{"<t-include template=\"a\">\n      x <t-for item=\"i\">y\n</t-include>", "missing item variable in <t-for>", 2, 9},
 		{"<t-extend template=\"a\">\n<t-define name=\"b\">\n  x <t-let name=\"n\">1\n</t-define>", "missing closing </t-let> tag", 3, 5},
+		// An unclosed t-debug in an indentation-stripped definition is
+		// located at its '<' in the original source.
+		{"<t-include template=\"card\">\n    <t-define name=\"body\">\n        <t-debug\n    </t-define>\n</t-include>", "unclosed <t-debug> tag", 3, 9},
+		{"<t-include template=\"card\">\n  a\n  <t-debug\n</t-include>", "unclosed <t-debug> tag", 3, 3},
 	} {
 		_, err := parse(tt.input)
 		var re *RenderError
@@ -74,7 +78,7 @@ func TestParseInclude(t *testing.T) {
 	input := "<t-include template=\"card\" isolated context=\"post.author as writer, , item\" label=\"a&amp;b\" wide>\n" +
 		"    <t-define name=\"title\">\n        <h2>T</h2>\n    </t-define>\n    <p>body</p>\n    <p>more</p>\n</t-include>"
 	got, err := parse(input)
-	if err != nil || got.deferred || len(got.nodes) != 1 || got.nodes[0].kind != includeNode {
+	if err != nil || len(got.nodes) != 1 || got.nodes[0].kind != includeNode {
 		t.Fatalf("parse = %+v, %v; want one include node", got, err)
 	}
 	inc := got.nodes[0].include

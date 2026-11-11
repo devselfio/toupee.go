@@ -164,7 +164,7 @@ func TestCompositionScope(t *testing.T) {
 	}
 }
 
-// TestCompositionReuse renders successes, errors and deferrals through
+// TestCompositionReuse renders successes, errors and stripped debug through
 // includes and extends, then checks the caller's Context is unchanged and
 // that the same Context and Loader render the same result again.
 func TestCompositionReuse(t *testing.T) {
@@ -174,7 +174,7 @@ func TestCompositionReuse(t *testing.T) {
 		"self":     `<t-include template="self" />`,
 		"card":     `<b><t-attr name="class" /><t-slot /></b>`,
 		"base":     `<html><t-slot /></html>`,
-		"deferred": `ok<t-debug />`,
+		"debug":    `ok<t-debug />`,
 		"slotself": `<t-slot name="x" />`,
 	}, calls)
 	const good = `<t-include template="card" class="c" context="list.0 as title">x</t-include><t-attr name="class" /><t-var name="title" />`
@@ -209,34 +209,79 @@ func TestCompositionReuse(t *testing.T) {
 		if got != "" || !errors.As(err, &re) || re.Kind != toupee.UndefinedVariable {
 			t.Fatalf("run %d: failing fill = %q, %v; want \"\" and UndefinedVariable", i, got, err)
 		}
-		for _, in := range []string{
-			`text<t-include template="deferred" />`,
-			`<t-include template="card"><t-debug /></t-include>`,
-			`<t-extend template="deferred">`,
+		for in, want := range map[string]string{
+			`text<t-include template="debug" />`:                 "textok",
+			`<t-include template="card"><t-debug /></t-include>`: "<b></b>",
+			`<t-extend template="debug">`:                        "ok",
 		} {
-			if got, err := toupee.Render(in, ctx, loader); got != "" || err != nil {
-				t.Fatalf("run %d: Render(%q) = %q, %v; want the bootstrap \"\", nil", i, in, got, err)
+			if got, err := toupee.Render(in, ctx, loader); got != want || err != nil {
+				t.Fatalf("run %d: Render(%q) = %q, %v; want %q, nil", i, in, got, err, want)
 			}
 		}
 	}
 	if !reflect.DeepEqual(ctx, want) {
 		t.Errorf("Render modified the caller's Context:\n got %#v\nwant %#v", ctx, want)
 	}
-	if calls["self"] != 2*51 || calls["card"] != 2*2 {
-		t.Errorf("loader calls = %v; want self 102 and card 4", calls)
+	if calls["self"] != 2*51 || calls["card"] != 2*3 {
+		t.Errorf("loader calls = %v; want self 102 and card 6", calls)
 	}
 }
 
-// TestCompositionDeferredFill shows a context slot fill that uses a
-// deferred construct keeping the bootstrap result for the whole render,
-// even after output and inside an include.
-func TestCompositionDeferredFill(t *testing.T) {
-	ctx := toupee.Context{Slots: map[string]string{"": `<t-debug />`}}
-	for _, in := range []string{`before<t-slot />`, `<t-extend template="base">`} {
-		got, err := toupee.Render(in, ctx, mapLoader(map[string]string{"base": "x<t-slot />"}, nil))
-		if got != "" || err != nil {
-			t.Errorf("Render(%q) = %q, %v; want \"\", nil", in, got, err)
-		}
+// TestCompositionDebug shows t-debug stripped from a loaded template, by
+// include and by extend, and from a context slot fill, by the input's slot,
+// a default-bodied slot and an extend's base, with the text around it kept
+// both inside the source and around the element that renders it.
+func TestCompositionDebug(t *testing.T) {
+	const src = "before<t-debug />after"
+	loader := mapLoader(map[string]string{
+		"inc":  src,
+		"base": "x<t-slot />",
+		"ext":  `<t-extend template="base"><t-define>[` + src + `]</t-define>`,
+		"card": `<b><t-slot>d<t-debug />d</t-slot><t-slot name="t" /></b>`,
+	}, nil)
+	for _, tt := range []struct {
+		name, input string
+		slots       map[string]string
+		want        string
+	}{
+		{"include", `<<t-include template="inc" />>`, nil, "<beforeafter>"},
+		{"extend", `<t-extend template="inc">`, nil, "beforeafter"},
+		{"extend chain with definitions", `<t-extend template="ext">`, nil, "x[beforeafter]"},
+		{"supplied anonymous fill", `<<t-slot />>`, map[string]string{"": src}, "<beforeafter>"},
+		{"debug-only anonymous fill", `before<t-slot />`, map[string]string{"": `<t-debug />`}, "before"},
+		{"debug-only fill through extend", `<t-extend template="base">`, map[string]string{"": `<t-debug />`}, "x"},
+		{"fill through extend", `<t-extend template="base">`, map[string]string{"": src}, "xbeforeafter"},
+		{"include anonymous fill", `<t-include template="card">a<t-debug />b</t-include>`, nil, "<b>ab</b>"},
+		{"include definition", `<t-include template="card"><t-define name="t">c<t-debug />d</t-define></t-include>`, nil, "<b>ddcd</b>"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := toupee.Render(tt.input, toupee.Context{Slots: tt.slots}, loader)
+			if got != tt.want || err != nil {
+				t.Errorf("Render(%q) = %q, %v; want %q, nil", tt.input, got, err, tt.want)
+			}
+		})
+	}
+}
+
+// TestCompositionDebugErrors shows an unclosed t-debug in a loaded template
+// or a supplied fill is the same MalformedElement, located in that source.
+func TestCompositionDebugErrors(t *testing.T) {
+	const bad = "\n  <t-debug"
+	want := toupee.RenderError{Line: 2, Column: 3, Kind: toupee.MalformedElement, Message: "unclosed <t-debug> tag"}
+	loader := mapLoader(map[string]string{"bad": bad, "base": "x<t-slot />"}, nil)
+	for _, tt := range []struct {
+		name, input string
+		slots       map[string]string
+	}{
+		{"included", `a<t-include template="bad" />`, nil},
+		{"extended", `<t-extend template="bad">`, nil},
+		{"supplied fill", `a<t-slot />`, map[string]string{"": bad}},
+		{"supplied fill through extend", `<t-extend template="base">`, map[string]string{"": bad}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := toupee.Render(tt.input, toupee.Context{Slots: tt.slots}, loader)
+			wantRenderError(t, got, err, want)
+		})
 	}
 }
 

@@ -43,7 +43,7 @@ func (p *parser) parseSlot(start, end int) (slot, int, error) {
 			return slot{}, 0, p.errorAt(start, MalformedElement, "missing closing </t-slot> tag")
 		}
 		body, err := p.parseContent(bodyStart, bodyStart+closePos)
-		if err != nil || p.deferred {
+		if err != nil {
 			return slot{}, 0, err
 		}
 		s.body = body
@@ -90,10 +90,6 @@ func (p *parser) parseInclude(start, end int) (include, int, error) {
 			res, err := fp.parseDefinitions(0, len(body))
 			if err != nil {
 				return include{}, 0, err
-			}
-			if fp.deferred {
-				p.deferred = true
-				return include{}, 0, nil
 			}
 			inc.defines, inc.anonymousSource = res.defines, res.anonymousSource
 		}
@@ -147,9 +143,6 @@ func (p *parser) parseDefinitions(start, end int) (defineResult, error) {
 		if err != nil {
 			return defineResult{}, err
 		}
-		if p.deferred {
-			return defineResult{}, nil
-		}
 		if seen[def.name] {
 			return defineResult{}, p.errorAt(i, DuplicateSlotDefinition, def.name)
 		}
@@ -169,10 +162,6 @@ func (p *parser) parseDefinitions(start, end int) (defineResult, error) {
 		fp := p.fragment(src, anonOffsets[lo:hi])
 		if _, err := fp.parseContent(0, len(src)); err != nil {
 			return defineResult{}, err
-		}
-		if fp.deferred {
-			p.deferred = true
-			return defineResult{}, nil
 		}
 		res.anonymousSource = src
 	}
@@ -205,10 +194,6 @@ func (p *parser) parseDefinition(start, end int) (definition, int, error) {
 	body, err := fp.parseContent(0, len(src))
 	if err != nil {
 		return definition{}, 0, err
-	}
-	if fp.deferred {
-		p.deferred = true
-		return definition{}, 0, nil
 	}
 	def := definition{name: name, source: src, body: body, pos: start}
 	return def, bodyStart + closePos + len(defineCloser), nil

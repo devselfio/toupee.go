@@ -5,19 +5,17 @@ import "strings"
 // Openers recognised by the parser, as Toupee v0.4.0 spells them. Matching
 // is on exact, case-sensitive prefixes.
 var (
-	varOpeners     = []string{"<t-var ", "<t-var/>", "<t-var>"}
-	rawOpeners     = []string{"<t-raw ", "<t-raw/>", "<t-raw>"}
-	commentOpener  = "<t-comment"
-	attrOpeners    = []string{"<t-attr ", "<t-attr/>"}
-	slotOpener     = "<t-slot"
-	includeOpener  = "<t-include "
-	extendOpeners  = []string{"<t-extend ", "<t-extend>"}
-	varCloser      = "</t-var>"
-	rawCloser      = "</t-raw>"
-	commentCloser  = "</t-comment>"
-	deferredOpener = []string{
-		"<t-debug",
-	}
+	varOpeners    = []string{"<t-var ", "<t-var/>", "<t-var>"}
+	rawOpeners    = []string{"<t-raw ", "<t-raw/>", "<t-raw>"}
+	commentOpener = "<t-comment"
+	debugOpener   = "<t-debug"
+	attrOpeners   = []string{"<t-attr ", "<t-attr/>"}
+	slotOpener    = "<t-slot"
+	includeOpener = "<t-include "
+	extendOpeners = []string{"<t-extend ", "<t-extend>"}
+	varCloser     = "</t-var>"
+	rawCloser     = "</t-raw>"
+	commentCloser = "</t-comment>"
 )
 
 // parser turns template source into nodes. Every position it records is an
@@ -27,18 +25,13 @@ var (
 // definition body with its indentation stripped. Its offsets map each byte
 // of source to its offset in origin, and its errors are reported there.
 type parser struct {
-	source   string
-	deferred bool
-	origin   string
-	offsets  []int
+	source  string
+	origin  string
+	offsets []int
 }
 
 // parse parses source. A source whose first non-whitespace bytes open a
-// t-extend is an extend: its remaining content is only definitions. When the
-// parser meets a construct this port does not yet implement (debug) it stops
-// and returns a result marked deferred; Render then keeps the bootstrap
-// behaviour for the whole render. A malformed element met before that is
-// still an error.
+// t-extend is an extend: its remaining content is only definitions.
 func parse(source string) (parsedTemplate, error) {
 	p := &parser{source: source}
 	start := len(source) - len(strings.TrimLeft(source, " \t\r\n"))
@@ -47,17 +40,11 @@ func parse(source string) (parsedTemplate, error) {
 		if err != nil {
 			return parsedTemplate{}, err
 		}
-		if p.deferred {
-			return parsedTemplate{deferred: true}, nil
-		}
 		return parsedTemplate{nodes: []node{{kind: extendNode, extension: ext}}}, nil
 	}
 	nodes, err := p.parseContent(0, len(source))
 	if err != nil {
 		return parsedTemplate{}, err
-	}
-	if p.deferred {
-		return parsedTemplate{deferred: true}, nil
 	}
 	return parsedTemplate{nodes: nodes}, nil
 }
@@ -107,7 +94,7 @@ func hasAnyPrefix(s string, prefixes []string) bool {
 }
 
 // parseContent parses source[start:end], keeping every byte that is not a
-// recognised element as literal text. It stops early once p.deferred is set.
+// recognised element as literal text. Comments and t-debug yield no node.
 func (p *parser) parseContent(start, end int) ([]node, error) {
 	var nodes []node
 	textStart := start
@@ -136,6 +123,13 @@ func (p *parser) parseContent(start, end int) ([]node, error) {
 			}
 			i, textStart = next, next
 			continue
+		case strings.HasPrefix(rest, debugOpener):
+			flush(i)
+			if next, err = p.parseDebug(i, end); err != nil {
+				return nil, err
+			}
+			i, textStart = next, next
+			continue
 		case hasAnyPrefix(rest, attrOpeners):
 			n.kind = attrOutputNode
 			n.attrOutput, next, err = p.parseAttrOutput(i, end)
@@ -153,9 +147,6 @@ func (p *parser) parseContent(start, end int) ([]node, error) {
 			n, next, err = p.parseConditional(i, end)
 		case hasAnyPrefix(rest, strayOpener):
 			return nil, p.errorAt(i, MalformedElement, "stray <t-else> or <t-elif> outside conditional or loop")
-		case hasAnyPrefix(rest, deferredOpener):
-			p.deferred = true
-			return nil, nil
 		case boundTagEnd(rest) >= 0:
 			n.kind = boundTagNode
 			n.boundTag, next, err = p.parseBoundTag(i, end)
@@ -165,9 +156,6 @@ func (p *parser) parseContent(start, end int) ([]node, error) {
 		}
 		if err != nil {
 			return nil, err
-		}
-		if p.deferred {
-			return nil, nil
 		}
 		flush(i)
 		nodes = append(nodes, n)
@@ -209,13 +197,26 @@ func (p *parser) parseVariable(start, end int, raw bool) (variable, int, error) 
 			return variable{}, 0, p.errorAt(start, MalformedElement, "missing closing tag")
 		}
 		body, err := p.parseContent(bodyStart, bodyStart+closePos)
-		if err != nil || p.deferred {
+		if err != nil {
 			return variable{}, 0, err
 		}
 		v.body, v.hasBody = body, true
 		next = bodyStart + closePos + len(closer)
 	}
 	return v, next, nil
+}
+
+// parseDebug consumes the opening tag of the t-debug element at start,
+// within source[:end], and returns the offset just past it. It does not look
+// for a closing tag or a body: Toupee treats only the opening tag as the
+// element. This port has no debug mode, so the element renders as Toupee
+// renders it with debug off, as nothing, and yields no node.
+func (p *parser) parseDebug(start, end int) (int, error) {
+	tagEnd := findTagEnd(p.source[start:end])
+	if tagEnd < 0 {
+		return 0, p.errorAt(start, MalformedElement, "unclosed <t-debug> tag")
+	}
+	return start + tagEnd + 1, nil
 }
 
 // parseComment consumes the t-comment element opening at start, within
