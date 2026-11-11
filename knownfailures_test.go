@@ -71,7 +71,8 @@ func parseKnownFailures(content string) ([]caseID, error) {
 }
 
 // loadKnownFailures reads knownFailuresPath. A missing or malformed list is
-// fatal: the file exists until the corpus passes in full.
+// fatal. Once the corpus passes in full the file stays, holding only its
+// comments, so a regression is still reported against an empty list.
 func loadKnownFailures(t *testing.T) map[caseID]bool {
 	t.Helper()
 	content, err := os.ReadFile(knownFailuresPath)
@@ -279,7 +280,14 @@ func TestStaleEntriesWholeCorpus(t *testing.T) {
 	if len(selected) == 0 {
 		t.Fatal("types-compare.test has no cases")
 	}
-	if len(known) > 0 && len(staleEntries(known, selected)) == 0 {
-		t.Fatal("validating against a selected subset should flag entries outside it; the test no longer distinguishes the two")
+	// The checked-in list may be empty, so the subset distinction is shown
+	// with a real case outside types-compare.test: valid against the whole
+	// corpus, stale against the subset.
+	synthetic := map[caseID]bool{{"edge.test", 193}: true}
+	if stale := staleEntries(synthetic, full); len(stale) != 0 {
+		t.Fatalf("edge.test L193 is not a corpus case: %v", stale)
+	}
+	if stale := staleEntries(synthetic, selected); !reflect.DeepEqual(stale, []caseID{{"edge.test", 193}}) {
+		t.Fatalf("validating against a selected subset flags %v, want edge.test L193; the test no longer distinguishes the two", stale)
 	}
 }

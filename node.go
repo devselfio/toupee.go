@@ -43,9 +43,7 @@ type variable struct {
 	transforms []transformStep
 }
 
-// parsedTemplate is a parse result. deferred reports that the source uses a
-// construct this port does not implement yet; see parse.
+// parsedTemplate is a parse result: the nodes of a source.
 type parsedTemplate struct {
-	nodes    []node
-	deferred bool
+	nodes []node
 }

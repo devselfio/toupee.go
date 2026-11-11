@@ -280,11 +280,11 @@ func (p *parser) parseLoop(start, end int) (node, int, error) {
 	if hasElse {
 		mainEnd = bodyStart + sep.pos
 	}
-	if l.body, err = p.parseContent(bodyStart, mainEnd); err != nil || p.deferred {
+	if l.body, err = p.parseContent(bodyStart, mainEnd); err != nil {
 		return node{}, 0, err
 	}
 	if hasElse {
-		if l.elseBody, err = p.parseContent(mainEnd+sep.length, bodyEnd); err != nil || p.deferred {
+		if l.elseBody, err = p.parseContent(mainEnd+sep.length, bodyEnd); err != nil {
 			return node{}, 0, err
 		}
 	}
@@ -318,7 +318,7 @@ func (p *parser) parseConditional(start, end int) (node, int, error) {
 			branchEnd = sep.pos
 		}
 		nodes, err := p.parseContent(bodyStart+from, bodyStart+branchEnd)
-		if err != nil || p.deferred {
+		if err != nil {
 			return node{}, 0, err
 		}
 		c.branches = append(c.branches, conditionalBranch{condition: parseCondition(tag), body: nodes})
@@ -327,7 +327,7 @@ func (p *parser) parseConditional(start, end int) (node, int, error) {
 		}
 		from = sep.pos + sep.length
 		if sep.isElse {
-			if c.elseBody, err = p.parseContent(bodyStart+from, bodyEnd); err != nil || p.deferred {
+			if c.elseBody, err = p.parseContent(bodyStart+from, bodyEnd); err != nil {
 				return node{}, 0, err
 			}
 			break
@@ -358,7 +358,7 @@ func (p *parser) parseLet(start, end int) (node, int, error) {
 		return node{}, 0, p.errorAt(start, MalformedElement, "missing closing </t-let> tag")
 	}
 	body, err := p.parseContent(bodyStart, bodyStart+closePos)
-	if err != nil || p.deferred {
+	if err != nil {
 		return node{}, 0, err
 	}
 	l := &letBinding{pos: start, name: name, body: body}

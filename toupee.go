@@ -17,12 +17,12 @@
 // bodies; t-attr; and t-var:/t-attr: bindings on ordinary tags, with
 // TemplateNotFound, DuplicateSlotDefinition and CircularReference errors.
 //
-// The other elements are not implemented yet. Until each is, a render that
-// meets t-debug, in the input, a loaded template or a slot fill, returns
-// "", nil, as the bootstrap did. This is temporary, not Toupee semantics.
+// This port has no debug mode. <t-debug /> and <t-debug> are always
+// stripped, preserving surrounding text, as Toupee renders them with its
+// debug option off, the default. A context dump would require a render
+// option that this port does not offer. An unclosed debug opening tag is a
+// MalformedElement with the message "unclosed <t-debug> tag".
 package toupee
-
-import "errors"
 
 // Context is the state a template renders against. The zero Context means
 // empty data, attrs and slots. Map keys may be empty; the empty slot name is
@@ -55,14 +55,8 @@ func Render(input string, ctx Context, loader Loader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if tmpl.deferred {
-		return "", nil
-	}
 	r := &renderer{source: input, loader: loader, loads: new(int)}
 	out, err := r.renderNodes(tmpl.nodes, newRenderContext(ctx))
-	if errors.Is(err, errDeferred) {
-		return "", nil
-	}
 	if err != nil {
 		return "", err
 	}

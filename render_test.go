@@ -148,7 +148,7 @@ func TestRenderErrors(t *testing.T) {
 		{"crlf counts the cr", "a\r\nb\r\n  <t-var name=\"m\" />", toupee.UndefinedVariable, "m", 3, 3},
 		{"nested fallback offset", "x\n<t-var name=\"a\">\n  é<t-raw name=\"b\" />\n</t-var>", toupee.UndefinedVariable, "b", 3, 5},
 		{"nested malformed offset", "<t-raw name=\"a\">\n\t<t-var name=\"b\"></t-raw>", toupee.MalformedElement, "missing closing tag", 2, 2},
-		{"malformed before deferred", `<t-var name="x"><t-if condition="y">`, toupee.MalformedElement, "missing closing tag", 1, 1},
+		{"malformed before an unclosed if", `<t-var name="x"><t-if condition="y">`, toupee.MalformedElement, "missing closing tag", 1, 1},
 		{"same-kind nested block is cut at the first close", `<t-var name="m">a<t-var name="n">b</t-var>c</t-var>`, toupee.MalformedElement, "missing closing tag", 1, 18},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -168,26 +168,77 @@ func TestRenderErrors(t *testing.T) {
 	}
 }
 
-func TestRenderDeferredConstructs(t *testing.T) {
-	data := map[string]toupee.Value{"x": str("X")}
-	for _, input := range []string{
-		`<t-var name="x" /><t-if var="x">y<t-debug /></t-if>`,
-		`<t-for item in xs><t-include template="c" /></t-for><t-debug />`,
-		`<t-debug />`,
-		`<t-var name="x" transform="upper" /><t-debug />`,
-		`<t-var name="x" /><t-var name="undefined" /><t-debug />`,
-		`<a t-var:href="x"><t-for item in xs><t-debug /></t-for></a>`,
-		`<t-include template="c"><t-if var="x"><t-debug /></t-if></t-include>`,
-		`<t-slot><t-let name="y" transform="upper">1</t-let><t-debug /></t-slot>`,
-		`<t-extend template="c"><t-define name="a"><t-debug /></t-define>`,
+// TestRenderDebug shows t-debug rendering as nothing, as Toupee renders it
+// with its debug option off, the default. Only the opening tag is consumed.
+func TestRenderDebug(t *testing.T) {
+	x := map[string]toupee.Value{"x": str("X")}
+	runRenderCases(t, []renderCase{
+		{"self-closing", `before<t-debug />after`, nil, `beforeafter`},
+		{"self-closing no space", `before<t-debug/>after`, nil, `beforeafter`},
+		{"opening tag", `before<t-debug>after`, nil, `beforeafter`},
+		{"only debug", `<t-debug />`, nil, ``},
+		{"body and closing tag are text", `a<t-debug>body</t-debug>b`, nil, `abody</t-debug>b`},
+		{"quoted > in the tag", `a<t-debug note=">" />b`, nil, `ab`},
+		{"no name boundary", `a<t-debugger>b`, nil, `ab`},
+		{"upper case is literal", `a<T-debug>b`, nil, `a<T-debug>b`},
+		{"adjacent", `a<t-debug /><t-debug><t-debug/>b`, nil, `ab`},
+		{"whitespace and newlines kept", "a \n<t-debug />\n b", nil, "a \n\n b"},
+		{"malformed debug in a comment", `a<t-comment><t-debug</t-comment>b`, nil, `ab`},
+		{"variables on both sides", `<t-var name="x" /><t-debug /><t-var name="x" />`, x, `XX`},
+		{"in a conditional", `<t-var name="x" /><t-if var="x">y<t-debug /></t-if>`, x, `Xy`},
+		{"after a transform", `<t-var name="x" transform="lower" /><t-debug />`, x, `x`},
+		{"after an upper transform", `<t-var name="x" transform="upper" /><t-debug />`, x, `X`},
+		{"in a loop body", `<t-for item in xs>[<t-var name="item" /><t-debug />]</t-for>`,
+			map[string]toupee.Value{"xs": {Kind: toupee.KindList, List: []toupee.Value{str("a"), str("b")}}}, `[a][b]`},
+		{"in a loop over nothing", `<t-for item in xs>a<t-debug /><t-else />none</t-for>`, nil, `none`},
+		{"in a bound tag's body", `<a t-var:href="x"><t-debug />l</a>`, x, `<a href="X">l</a>`},
+		{"in a slot default", `<t-slot><t-let name="y" transform="upper">1</t-let><t-debug />d</t-slot>`, nil, `d`},
+		{"in a variable fallback", `<t-var name="m">a<t-debug />b</t-var>`, nil, `ab`},
+	})
+}
+
+// TestRenderDebugErrors shows an unclosed t-debug is a MalformedElement at
+// its '<', and that t-debug never hides a later error.
+func TestRenderDebugErrors(t *testing.T) {
+	for _, tt := range []struct {
+		name, input string
+		kind        toupee.ErrorKind
+		message     string
+		line, col   int
+	}{
+		{"unclosed", "\n  <t-debug", toupee.MalformedElement, "unclosed <t-debug> tag", 2, 3},
+		{"unmatched double quote", `ab<t-debug note=">`, toupee.MalformedElement, "unclosed <t-debug> tag", 1, 3},
+		{"after output", `<t-var name="x" />a<t-debug`, toupee.MalformedElement, "unclosed <t-debug> tag", 1, 20},
+		{"in a body", "<t-if var=\"x\">\n<t-debug</t-if>", toupee.MalformedElement, "unclosed <t-debug> tag", 2, 1},
+		{"undefined after debug", `a<t-debug /><t-var name="missing" />`, toupee.UndefinedVariable, "missing", 1, 13},
+		{"malformed after debug", `a<t-debug /><t-var name="x"`, toupee.MalformedElement, "unclosed variable tag", 1, 13},
+		{"undefined before debug", `<t-var name="x" /><t-var name="undefined" /><t-debug />`, toupee.UndefinedVariable, "undefined", 1, 19},
+		{"include with no loader", `<t-include template="c"><t-if var="x"><t-debug /></t-if></t-include>`, toupee.TemplateNotFound, "c", 1, 1},
+		{"extend with no loader", `<t-extend template="c"><t-define name="a"><t-debug /></t-define>`, toupee.TemplateNotFound, "c", 1, 1},
+		{"include in a loop with no loader", `<t-for item in xs><t-include template="c" /></t-for><t-debug />`, toupee.TemplateNotFound, "c", 1, 19},
 	} {
-		got, err := toupee.Render(input, toupee.Context{Data: data}, nil)
-		if got != "" || err != nil {
-			t.Errorf("Render(%q) = %q, %v; want the bootstrap \"\", nil", input, got, err)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			data := map[string]toupee.Value{"x": str("X"), "xs": {Kind: toupee.KindList, List: []toupee.Value{str("a")}}}
+			got, err := toupee.Render(tt.input, toupee.Context{Data: data}, nil)
+			if got != "" {
+				t.Errorf("partial output %q", got)
+			}
+			var re *toupee.RenderError
+			if !errors.As(err, &re) {
+				t.Fatalf("error %v (%T), want a *RenderError", err, err)
+			}
+			want := toupee.RenderError{Line: tt.line, Column: tt.col, Kind: tt.kind, Message: tt.message}
+			if *re != want {
+				t.Errorf("got %+v, want %+v", *re, want)
+			}
+		})
 	}
-	// Words that merely look like syntax do not defer, and t-define and
-	// t-extend outside an extend's start are literal text, as upstream.
+}
+
+// TestRenderLiteralSyntax shows words that merely look like syntax render
+// as text, and t-define and t-extend outside an extend's start are literal
+// text, as upstream.
+func TestRenderLiteralSyntax(t *testing.T) {
 	runRenderCases(t, []renderCase{
 		{"text mentions t-if", `t-if and t-var: are words`, nil, `t-if and t-var: are words`},
 		{"closing tag with t-var: text", `</a t-var:x>`, nil, `</a t-var:x>`},

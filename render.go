@@ -11,11 +11,6 @@ import (
 // renderSlot for the repeats that are reported.
 const maxDepth = 50
 
-// errDeferred reports that a template loaded or a slot fill parsed during
-// rendering uses a construct this port does not implement yet. Render turns
-// it into the bootstrap result for the whole call.
-var errDeferred = errors.New("toupee: deferred construct")
-
 // renderer renders the parsed nodes of one template. source is the text
 // those nodes were parsed from, so errors are located in it; templateName
 // is its name, "" for the input. depth counts the includes above it. fills

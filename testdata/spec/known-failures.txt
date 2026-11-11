@@ -5,4 +5,3 @@
 # Every listed case must fail and every unlisted case must pass; TestSpec
 # fails otherwise. When a change makes a case pass, delete its line. Never add
 # a line to hide a regression: the list only shrinks.
-edge.test L193
