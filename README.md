@@ -175,6 +175,25 @@ out, err := toupee.Render(`<p><t-var name="title" />: <t-var name="count" /></p>
 The complete, compiled version of this example is `Example` in
 `toupee_test.go`.
 
+## Layout
+
+Callers import only the root package. Following gridapp's ADR 0018, it
+holds one source file, `toupee.go`, with `Render` and the public types;
+`Context`, `Loader`, `Value`, `ValueKind`, `RenderError` and `ErrorKind`
+are type aliases, and their constants re-exports, of the implementation's
+own, so values and errors pass through unchanged and `errors.As` works as
+before. (Reflection reports the defining package as `internal/engine`.)
+
+- `toupee.go`: the entry points and the package documentation.
+- `internal/engine/`: the implementation (the parser and its node types,
+  control flow, composition, lookup, indentation, HTML escaping and the
+  transforms) and its white-box tests.
+- Root `*_test.go`: the public API, layout and rendering tests and the
+  corpus runner, all in `package toupee_test`, calling only the root.
+- `testdata/spec/`: the vendored corpus, its record and the
+  known-failures list.
+- `cmd/driftcheck/`: the drift check behind `make spec-drift`.
+
 ## The method
 
 The port is measured the way gjot is, copied rather than redesigned.
