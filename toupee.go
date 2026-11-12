@@ -23,12 +23,18 @@
 // option that this port does not offer. An unclosed debug opening tag is a
 // MalformedElement with the message "unclosed <t-debug> tag".
 //
+// Validate checks a named set of templates before rendering, with no page
+// data: it reports each template's syntax error and each include or extend
+// target that is neither in the set nor known to the loader, located at the
+// referencing element. Templates reached only through the loader are not
+// parsed.
+//
 // # Layout
 //
 // This file, toupee.go, is the root package's only source file and holds
-// its entry points. The implementation (the parser and its node types,
-// control flow, composition, lookup, indentation, HTML escaping and the
-// transforms) lives in internal/engine. The root's types are aliases of
+// its entry points, Render and Validate. The implementation (the parser
+// and its node types, control flow, composition, lookup, indentation, HTML
+// escaping and the transforms) lives in internal/engine. The root's types are aliases of
 // that package's and its constants re-export that package's, so values and
 // errors pass between the two unchanged; callers import only this package.
 package toupee
@@ -98,4 +104,34 @@ const (
 // On failure Render returns "" and the error, never partial output.
 func Render(input string, ctx Context, loader Loader) (string, error) {
 	return engine.Render(input, ctx, loader)
+}
+
+// Diagnostic is one problem Validate found in a template of the set:
+// the template's name, the 1-based line and byte column in its source, and
+// Kind and Message. Kind is MalformedElement or DuplicateSlotDefinition for
+// a syntax error, with the parser's message, or TemplateNotFound for a
+// missing target, with the message "missing include 'NAME'" or
+// "missing extends 'NAME'".
+type Diagnostic = engine.Diagnostic
+
+// Validate parses every template of the set, which maps names to sources,
+// and checks without page data that every include and extend target is a
+// name in the set or a template loader returns. Targets are checked in every
+// conditional branch, loop body, default body, let, slot default, include
+// fill and extend definition. A syntax error or a missing target is a
+// Diagnostic; a template that failed to parse still counts as present.
+// Diagnostics are ordered by template name, then line, then column. It reads
+// its arguments without modifying them and keeps no state between calls.
+//
+// loader follows the Loader convention: it is called once for each
+// reference outside the set; a nil error resolves the target, and a nil
+// loader or a TemplateNotFound *RenderError makes it missing. Any other
+// loader error stops validation and is returned, wrapped, with no
+// diagnostics. A template found only through loader is checked for
+// existence and is not parsed.
+//
+// Not checked: extend cycles, include depth, variables, transforms, slot
+// names, and a fill whose text begins with <t-extend.
+func Validate(templates map[string]string, loader Loader) ([]Diagnostic, error) {
+	return engine.Validate(templates, loader)
 }
