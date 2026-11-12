@@ -37,6 +37,8 @@ type include struct {
 	isolated        bool
 	bindings        []contextBinding
 	pos             int
+	anonymousBody   []node // the parsed anonymous fill; never rendered
+	origin          int    // pos mapped to the template's original source
 }
 
 // extension is a <t-extend> template: the parent's name and the fills it
@@ -70,4 +72,5 @@ type attributeBinding struct {
 type defineResult struct {
 	defines         []definition
 	anonymousSource string
+	anonymousBody   []node
 }

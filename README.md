@@ -122,6 +122,7 @@ option that this port does not offer. An unclosed debug opening tag is a
 
 ```go
 func Render(input string, ctx Context, loader Loader) (string, error)
+func Validate(templates map[string]string, loader Loader) ([]Diagnostic, error)
 ```
 
 - **`Value`** is the template datum, with seven forms selected by `Kind`:
@@ -141,8 +142,16 @@ func Render(input string, ctx Context, loader Loader) (string, error)
   `DuplicateSlotDefinition` and `CircularReference`. Use `errors.As`; the
   `Error()` text is for people, not a contract.
 
-`Render` reads its arguments without modifying them and keeps no state
-between calls.
+- **`Diagnostic`** is one problem `Validate` found: `Template` (the name
+  the template was supplied under), `Line` and `Column` (1-based, in that
+  template's source, the column counted in bytes), `Kind` and `Message`.
+  `Kind` is `MalformedElement` or `DuplicateSlotDefinition` for a syntax
+  error, whose `Message` is the parser's own, as `Render` would report it;
+  or `TemplateNotFound` for a missing target, whose `Message` is
+  `missing include 'NAME'` or `missing extends 'NAME'`.
+
+`Render` and `Validate` read their arguments without modifying them and
+keep no state between calls.
 
 ```go
 data := map[string]toupee.Value{
@@ -175,12 +184,55 @@ out, err := toupee.Render(`<p><t-var name="title" />: <t-var name="count" /></p>
 The complete, compiled version of this example is `Example` in
 `toupee_test.go`.
 
+### Validation
+
+`Validate` checks a named set of templates before anything renders, with
+no page data. `templates` maps each name to its source; `template="…"`
+attributes are matched against the names verbatim.
+
+- Every supplied template is parsed. A syntax error is one diagnostic for
+  that template (the parser stops at its first), and the template still
+  counts as present for references to it.
+- Every `<t-include>` and `<t-extend>` target is checked, in every branch
+  of `t-if`, both bodies of `t-for`, `t-var` and `t-raw` default bodies,
+  `t-let` bodies, `t-slot` defaults, include fills (named and anonymous) and
+  extend definitions, whether or not they would render.
+- A target resolves if it is a name in the set, or if `loader` returns it
+  without error. A `TemplateNotFound` `*RenderError` from the loader, or a
+  nil loader, makes it a missing target. The loader is called once for each
+  reference outside the set.
+- A template reached only through the loader is checked for existence and
+  is not parsed: supply every source that must be checked.
+- Any other loader error stops validation: `Validate` returns no
+  diagnostics and an error wrapping the loader's, with the text
+  `toupee: validate TEMPLATE: load TARGET: …`; `errors.Is` and `errors.As`
+  reach the loader's error.
+- Diagnostics are ordered by template name (bytewise), then line, then
+  column. A clean set gives none and a nil error.
+- Not checked: extend cycles, include depth, variables, transforms, slot
+  names, and a fill whose text begins with `<t-extend`, which is text when
+  parsed as a definition body.
+
+```go
+diags, err := toupee.Validate(map[string]string{
+	"page.html": "<main>\n<t-include template=\"nav.html\" />\n</main>",
+}, nil)
+// err == nil
+for _, d := range diags {
+	fmt.Printf("%s:%d:%d: %s\n", d.Template, d.Line, d.Column, d.Message)
+}
+// page.html:2:1: missing include 'nav.html'
+```
+
+The compiled version of this example is `ExampleValidate` in
+`validate_test.go`.
+
 ## Layout
 
 Callers import only the root package. Following gridapp's ADR 0018, it
-holds one source file, `toupee.go`, with `Render` and the public types;
-`Context`, `Loader`, `Value`, `ValueKind`, `RenderError` and `ErrorKind`
-are type aliases, and their constants re-exports, of the implementation's
+holds one source file, `toupee.go`, with `Render`, `Validate` and the public
+types; `Context`, `Loader`, `Value`, `ValueKind`, `RenderError`,
+`ErrorKind` and `Diagnostic` are type aliases, and their constants re-exports, of the implementation's
 own, so values and errors pass through unchanged and `errors.As` works as
 before. (Reflection reports the defining package as `internal/engine`.)
 
@@ -248,6 +300,10 @@ real entries stale. An unfiltered run logs the measurement:
 
 No cases are on the known-failures list.
 A filtered run reports its selected count instead.
+
+Validation is not part of Toupee's corpus. `Validate` is pinned by
+`validate_test.go` against the reference's `engine validate` unit tests in
+Toupee v0.4.0's `src/root.zig`.
 
 **A drift check.** `make spec-drift` runs `cmd/driftcheck`. It checks the
 local files against `SHA256SUMS`, which must record the pinned tag, and,
