@@ -29,12 +29,18 @@
 // referencing element. Templates reached only through the loader are not
 // parsed.
 //
+// Prepare validates a named set as Validate does and, when it is clean,
+// returns a Set holding every template's parse. Set.Render renders an entry
+// of the set for any context, taking the entry and every include and extend
+// target in the set from the retained parses, without parsing them again or
+// calling the loader. A Set is immutable and safe for concurrent renders.
+//
 // # Layout
 //
 // This file, toupee.go, is the root package's only source file and holds
-// its entry points, Render and Validate. The implementation (the parser
-// and its node types, control flow, composition, lookup, indentation, HTML
-// escaping and the transforms) lives in internal/engine. The root's types
+// its entry points, Render, Validate and Prepare. The implementation (the
+// parser and its node types, control flow, composition, lookup,
+// indentation, HTML escaping and the transforms) lives in internal/engine. The root's types
 // are aliases of that package's and its constants re-export that
 // package's, so values and errors pass between the two unchanged; callers
 // import only this package.
