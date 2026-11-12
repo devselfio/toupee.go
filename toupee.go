@@ -34,9 +34,10 @@
 // This file, toupee.go, is the root package's only source file and holds
 // its entry points, Render and Validate. The implementation (the parser
 // and its node types, control flow, composition, lookup, indentation, HTML
-// escaping and the transforms) lives in internal/engine. The root's types are aliases of
-// that package's and its constants re-export that package's, so values and
-// errors pass between the two unchanged; callers import only this package.
+// escaping and the transforms) lives in internal/engine. The root's types
+// are aliases of that package's and its constants re-export that
+// package's, so values and errors pass between the two unchanged; callers
+// import only this package.
 package toupee
 
 import "github.com/devselfio/toupee.go/internal/engine"
