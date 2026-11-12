@@ -22,38 +22,61 @@ type activeFill struct {
 	depth, loads int
 }
 
-// renderTemplate parses source, the template name, and renders it in ctx
-// at depth.
-func (r *renderer) renderTemplate(source, name string, ctx *renderContext, depth int) (string, error) {
+// renderTemplate renders t, the template name, in ctx at depth. The depth
+// is checked before t is parsed.
+func (r *renderer) renderTemplate(t loadedTemplate, name string, ctx *renderContext, depth int) (string, error) {
 	if depth > maxDepth {
-		return "", errorAt(source, 0, CircularReference, name)
+		return "", errorAt(t.source, 0, CircularReference, name)
 	}
-	tmpl, err := parse(source)
+	nodes, err := t.parse()
 	if err != nil {
 		return "", err
 	}
-	child := &renderer{source: source, loader: r.loader, loads: r.loads, templateName: name, depth: depth, fills: r.fills}
-	return child.renderNodes(tmpl.nodes, ctx)
+	child := &renderer{source: t.source, set: r.set, loader: r.loader, loads: r.loads, templateName: name, depth: depth, fills: r.fills}
+	return child.renderNodes(nodes, ctx)
 }
 
-// loadTemplate returns the source of the template name, requested by the
-// element at pos in r.source. A nil loader, or a loader error that is a
+// loadedTemplate is a template resolved by name: its source and, when the
+// set retains it, its parse.
+type loadedTemplate struct {
+	source   string
+	nodes    []node
+	retained bool
+}
+
+// parse returns t's nodes, parsing its source unless the set retains them.
+func (t loadedTemplate) parse() ([]node, error) {
+	if t.retained {
+		return t.nodes, nil
+	}
+	tmpl, err := parse(t.source)
+	return tmpl.nodes, err
+}
+
+// loadTemplate resolves the template name, requested by the element at pos
+// in r.source: from r.set when it holds name, with no loader call, and
+// otherwise through the loader. A nil loader, or a loader error that is a
 // TemplateNotFound RenderError, is a TemplateNotFound located at pos whose
 // message is name; any other loader error is returned unchanged.
-func (r *renderer) loadTemplate(name string, pos int) (string, error) {
+func (r *renderer) loadTemplate(name string, pos int) (loadedTemplate, error) {
+	if r.set != nil {
+		if tmpl, ok := r.set.templates[name]; ok {
+			return loadedTemplate{source: tmpl.source, nodes: tmpl.nodes, retained: true}, nil
+		}
+	}
 	if r.loader == nil {
-		return "", errorAt(r.source, pos, TemplateNotFound, name)
+		return loadedTemplate{}, errorAt(r.source, pos, TemplateNotFound, name)
 	}
 	*r.loads++
 	src, err := r.loader(name)
 	if err != nil {
 		var re *RenderError
 		if errors.As(err, &re) && re.Kind == TemplateNotFound {
-			return "", errorAt(r.source, pos, TemplateNotFound, name)
+			return loadedTemplate{}, errorAt(r.source, pos, TemplateNotFound, name)
 		}
-		return "", err
+		return loadedTemplate{}, err
 	}
-	return src, nil
+	return loadedTemplate{source: src}, nil
 }
 
 // renderAttrOutput renders the escaped include attribute a names, or
@@ -103,7 +126,7 @@ func (r *renderer) renderBoundTag(tag boundTag, ctx *renderContext) (string, err
 // isolated, overlaid with the context bindings that resolve in ctx, and
 // only the include's own attributes and fills.
 func (r *renderer) renderInclude(inc include, ctx *renderContext, out *bytes.Buffer) error {
-	src, err := r.loadTemplate(inc.template, inc.pos)
+	tmpl, err := r.loadTemplate(inc.template, inc.pos)
 	if err != nil {
 		return err
 	}
@@ -125,7 +148,7 @@ func (r *renderer) renderInclude(inc include, ctx *renderContext, out *bytes.Buf
 		child.slots[""] = inc.anonymousSource
 	}
 	indent := insertionIndent(out)
-	rendered, err := r.renderTemplate(src, inc.template, child, r.depth+1)
+	rendered, err := r.renderTemplate(tmpl, inc.template, child, r.depth+1)
 	if err != nil {
 		return err
 	}
@@ -176,7 +199,7 @@ func (r *renderer) renderSlot(s slot, ctx *renderContext, out *bytes.Buffer) err
 		delete(child.slots, parkedSlot)
 	}
 	fills := append(r.fills[:len(r.fills):len(r.fills)], activeFill{name: s.name, source: fill, ctx: ctx, depth: r.depth, loads: *r.loads})
-	fr := &renderer{source: fill, loader: r.loader, loads: r.loads, templateName: r.templateName, depth: r.depth, fills: fills}
+	fr := &renderer{source: fill, set: r.set, loader: r.loader, loads: r.loads, templateName: r.templateName, depth: r.depth, fills: fills}
 	rendered, err := fr.renderNodes(tmpl.nodes, child)
 	if err != nil {
 		return err
@@ -227,24 +250,24 @@ func (r *renderer) renderExtend(ext extension, ctx *renderContext) (string, erro
 // extend. An empty template renders as "".
 func (r *renderer) resolveExtendChain(name string, slots map[string]string, pos int, ctx *renderContext) (string, error) {
 	visited := map[string]bool{name: true}
-	src, err := r.loadTemplate(name, pos)
+	t, err := r.loadTemplate(name, pos)
 	if err != nil {
 		return "", err
 	}
-	cur := &renderer{source: src, loader: r.loader, loads: r.loads, templateName: name, depth: r.depth, fills: r.fills}
+	cur := &renderer{source: t.source, set: r.set, loader: r.loader, loads: r.loads, templateName: name, depth: r.depth, fills: r.fills}
 	for {
-		tmpl, err := parse(cur.source)
+		nodes, err := t.parse()
 		if err != nil {
 			return "", err
 		}
-		if len(tmpl.nodes) == 0 {
+		if len(nodes) == 0 {
 			return "", nil
 		}
-		if tmpl.nodes[0].kind != extendNode {
+		if nodes[0].kind != extendNode {
 			leaf := &renderContext{data: cloneData(ctx.data), attrs: ctx.attrs, slots: slots}
-			return cur.renderNodes(tmpl.nodes, leaf)
+			return cur.renderNodes(nodes, leaf)
 		}
-		parent := tmpl.nodes[0].extension
+		parent := nodes[0].extension
 		if visited[parent.template] {
 			return "", errorAt(cur.source, parent.pos, CircularReference, parent.template)
 		}
@@ -254,11 +277,11 @@ func (r *renderer) resolveExtendChain(name string, slots map[string]string, pos 
 				slots[d.name] = d.source
 			}
 		}
-		src, err := cur.loadTemplate(parent.template, parent.pos)
+		t, err = cur.loadTemplate(parent.template, parent.pos)
 		if err != nil {
 			return "", err
 		}
-		cur = &renderer{source: src, loader: r.loader, loads: r.loads, templateName: parent.template, depth: r.depth, fills: r.fills}
+		cur = &renderer{source: t.source, set: r.set, loader: r.loader, loads: r.loads, templateName: parent.template, depth: r.depth, fills: r.fills}
 	}
 }
 

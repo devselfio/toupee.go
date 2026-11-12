@@ -5,6 +5,7 @@ import (
 
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -202,6 +203,52 @@ func TestSpec(t *testing.T) {
 		t.Logf("corpus: %d of %d cases pass", pass, len(corpus))
 	} else {
 		t.Logf("corpus (filtered): %d of %d selected cases pass; %d cases in the corpus", pass, ran, len(corpus))
+	}
+}
+
+// setEntry is the name under which TestSpecThroughSet puts a case's input.
+const setEntry = "\x00entry"
+
+// TestSpecThroughSet renders every corpus case from a prepared set of the
+// case's named templates and its input. A case the set's validation refuses
+// must expect an error of the first diagnostic's kind; every other case must
+// meet its expectation through Set.Render. The counts pin how many cases
+// take each path at the corpus's pinned tag.
+func TestSpecThroughSet(t *testing.T) {
+	clean := 0
+	refused := map[toupee.ErrorKind]int{}
+	for _, f := range loadCorpus(t) {
+		for _, c := range f.cases {
+			templates := map[string]string{}
+			for _, tmpl := range c.spec.templates {
+				templates[tmpl.name] = tmpl.source
+			}
+			if _, ok := templates[setEntry]; ok {
+				t.Fatalf("%s %q names a template %q", c.id, c.spec.name, setEntry)
+			}
+			templates[setEntry] = *c.spec.input
+			set, diags, err := toupee.Prepare(templates, nil)
+			if err != nil {
+				t.Fatalf("%s %q: Prepare: %v", c.id, c.spec.name, err)
+			}
+			if len(diags) > 0 {
+				refused[diags[0].Kind]++
+				if c.spec.errorName == nil || toupee.ErrorKind(*c.spec.errorName) != diags[0].Kind {
+					t.Errorf("%s %q: refused with %v, but the case expects %v", c.id, c.spec.name, diags, c.spec.errorName)
+				}
+				continue
+			}
+			clean++
+			if err := checkCaseWith(c, func(string, toupee.Context, toupee.Loader) (string, error) {
+				return set.Render(setEntry, c.ctx)
+			}); err != nil {
+				t.Error(err)
+			}
+		}
+	}
+	want := map[toupee.ErrorKind]int{toupee.MalformedElement: 22, toupee.TemplateNotFound: 6, toupee.DuplicateSlotDefinition: 2}
+	if clean != 489 || !maps.Equal(refused, want) {
+		t.Errorf("prepared clean %d, refused %v; want 489, %v", clean, refused, want)
 	}
 }
 

@@ -136,3 +136,34 @@ type Diagnostic = engine.Diagnostic
 func Validate(templates map[string]string, loader Loader) ([]Diagnostic, error) {
 	return engine.Validate(templates, loader)
 }
+
+// Set is a validated set of named templates, held as parses, made by
+// Prepare. It is never written after Prepare: any number of goroutines may
+// call its Render method at once, each with its own scope and output.
+//
+// Set.Render(name, ctx) renders the set's template name against ctx. A name
+// the set lacks is ("", &RenderError{Kind: TemplateNotFound, Message: name})
+// with Line and Column 0; the loader is not asked for it. An include or
+// extend target in the set is rendered from its retained parse, without
+// parsing it again or calling the loader. A target outside the set goes to
+// the loader given to Prepare exactly as Render's loader does: called once
+// per reference, parsed on each render, a missing name a TemplateNotFound
+// at the element that named it, any other loader error returned unchanged.
+// Output and errors are those Render gives for the same templates, with ""
+// on failure, with one difference: a set lookup is not a loader call, so a
+// slot fill that re-enters itself through set templates only is a
+// CircularReference at the slot, where Render with a loader renders on.
+// Slot fills are parsed when their slot is met, as Render parses them.
+type Set = engine.Set
+
+// Prepare validates the set of templates, which maps names to sources, with
+// loader, returning the Diagnostics and error Validate returns for the same
+// arguments. When both are empty it returns a *Set holding the parse of
+// every template and loader; otherwise the *Set is nil. An empty or nil map
+// prepares an empty set. Prepare reads templates without modifying it and
+// keeps only its strings: changing the map afterwards does not change the
+// set. loader is kept to resolve targets outside the set at render time and
+// must be safe for concurrent use if the set is rendered concurrently.
+func Prepare(templates map[string]string, loader Loader) (*Set, []Diagnostic, error) {
+	return engine.Prepare(templates, loader)
+}

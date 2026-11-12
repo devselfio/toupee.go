@@ -40,13 +40,13 @@ func parse(source string) (parsedTemplate, error) {
 		if err != nil {
 			return parsedTemplate{}, err
 		}
-		return parsedTemplate{nodes: []node{{kind: extendNode, extension: ext}}}, nil
+		return parsedTemplate{nodes: []node{{kind: extendNode, extension: ext}}, source: source}, nil
 	}
 	nodes, err := p.parseContent(0, len(source))
 	if err != nil {
 		return parsedTemplate{}, err
 	}
-	return parsedTemplate{nodes: nodes}, nil
+	return parsedTemplate{nodes: nodes, source: source}, nil
 }
 
 // fragment returns a parser for text, whose byte i came from offset
