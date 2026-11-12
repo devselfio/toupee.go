@@ -72,7 +72,7 @@ func (p *parser) parseInclude(start, end int) (include, int, error) {
 	if !ok {
 		return include{}, 0, p.errorAt(start, MalformedElement, "missing 'template' attribute on <t-include>")
 	}
-	inc := include{template: name, attrs: parseIncludeAttrs(tag), pos: start}
+	inc := include{template: name, attrs: parseIncludeAttrs(tag), pos: start, origin: p.originPos(start)}
 	next := start + tagEnd + 1
 	if rest[tagEnd-1] != '/' {
 		bodyStart := next
@@ -91,7 +91,7 @@ func (p *parser) parseInclude(start, end int) (include, int, error) {
 			if err != nil {
 				return include{}, 0, err
 			}
-			inc.defines, inc.anonymousSource = res.defines, res.anonymousSource
+			inc.defines, inc.anonymousSource, inc.anonymousBody = res.defines, res.anonymousSource, res.anonymousBody
 		}
 	}
 	inc.isolated = hasBoolAttr(tag, "isolated")
@@ -160,10 +160,11 @@ func (p *parser) parseDefinitions(start, end int) (defineResult, error) {
 	if lo < hi {
 		src := string(anon[lo:hi])
 		fp := p.fragment(src, anonOffsets[lo:hi])
-		if _, err := fp.parseContent(0, len(src)); err != nil {
+		body, err := fp.parseContent(0, len(src))
+		if err != nil {
 			return defineResult{}, err
 		}
-		res.anonymousSource = src
+		res.anonymousSource, res.anonymousBody = src, body
 	}
 	return res, nil
 }
