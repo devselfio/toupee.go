@@ -23,6 +23,9 @@ func Prepare(templates map[string]string, loader Loader) (*Set, []Diagnostic, er
 // taking include and extend targets in the set from their retained parses
 // and the others from the set's loader. A name not in the set is a
 // TemplateNotFound with no position; the loader is not asked for it.
+// A set lookup is not a loader call, so a slot fill that re-enters itself
+// through set templates only is a CircularReference at the slot, where
+// Render with a loader does not detect it.
 func (s *Set) Render(name string, ctx Context) (string, error) {
 	tmpl, ok := s.templates[name]
 	if !ok {

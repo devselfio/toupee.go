@@ -129,6 +129,28 @@ func TestPrepareReportsValidateDiagnostics(t *testing.T) {
 	}
 }
 
+// Oracle: the prepared-set contract detects a fill re-entering itself
+// through set templates only, since a set lookup is not a loader call.
+func TestSetDetectsSlotCycleThroughExtend(t *testing.T) {
+	set := prepareClean(t, map[string]string{
+		"base.html":  `<t-slot name="a" />`,
+		"entry.html": `<t-extend template="base.html"><t-define name="a"><t-extend template="base.html"></t-define>`,
+	}, func(string) (string, error) { return "", errors.New("loader called") })
+	got, err := set.Render("entry.html", toupee.Context{})
+	wantRenderError(t, got, err, toupee.RenderError{Line: 1, Column: 1, Kind: toupee.CircularReference, Message: "a"})
+}
+
+func TestSetDetectsSlotCycleAfterInclude(t *testing.T) {
+	set := prepareClean(t, map[string]string{
+		"entry.html": `<t-slot name="x" />`,
+		"step":       "",
+	}, func(string) (string, error) { return "", errors.New("loader called") })
+	got, err := set.Render("entry.html", toupee.Context{Slots: map[string]string{
+		"x": `<t-include template="step" /><t-slot name="x" />`,
+	}})
+	wantRenderError(t, got, err, toupee.RenderError{Line: 1, Column: 30, Kind: toupee.CircularReference, Message: "x"})
+}
+
 func TestSetRuntimeErrors(t *testing.T) {
 	set := prepareClean(t, map[string]string{
 		"page.html": "<p>\n<t-include template=\"card.html\" /></p>",
