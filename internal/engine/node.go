@@ -43,7 +43,9 @@ type variable struct {
 	transforms []transformStep
 }
 
-// parsedTemplate is a parse result: the nodes of a source.
+// parsedTemplate is a parse result: the nodes of a source and the source
+// they were parsed from.
 type parsedTemplate struct {
-	nodes []node
+	nodes  []node
+	source string
 }

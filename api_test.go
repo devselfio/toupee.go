@@ -33,9 +33,11 @@ var (
 		List:    []toupee.Value{},
 		Map:     map[string]toupee.Value{},
 	}
-	_                                                                     = toupee.RenderError{Line: 0, Column: 0, Kind: toupee.MalformedElement, Message: ""}
-	_ func(map[string]string, toupee.Loader) ([]toupee.Diagnostic, error) = toupee.Validate
-	_                                                                     = toupee.Diagnostic{Template: "", Line: 0, Column: 0, Kind: toupee.TemplateNotFound, Message: ""}
+	_                                                                                  = toupee.RenderError{Line: 0, Column: 0, Kind: toupee.MalformedElement, Message: ""}
+	_ func(map[string]string, toupee.Loader) ([]toupee.Diagnostic, error)              = toupee.Validate
+	_                                                                                  = toupee.Diagnostic{Template: "", Line: 0, Column: 0, Kind: toupee.TemplateNotFound, Message: ""}
+	_ func(map[string]string, toupee.Loader) (*toupee.Set, []toupee.Diagnostic, error) = toupee.Prepare
+	_ func(*toupee.Set, string, toupee.Context) (string, error)                        = (*toupee.Set).Render
 )
 
 // TestPublicAPI checks the root's exported top-level names, the kinds of
@@ -85,8 +87,8 @@ func TestPublicAPI(t *testing.T) {
 		"CircularReference", "Context", "Diagnostic", "DuplicateSlotDefinition",
 		"ErrorKind", "KindBoolean", "KindFloat", "KindInteger", "KindList",
 		"KindMap", "KindNil", "KindString", "Loader", "MalformedElement",
-		"Render", "RenderError", "TemplateNotFound", "UndefinedVariable",
-		"Validate", "Value", "ValueKind",
+		"Prepare", "Render", "RenderError", "Set", "TemplateNotFound",
+		"UndefinedVariable", "Validate", "Value", "ValueKind",
 	}
 	if !slices.Equal(names, want) {
 		t.Errorf("root exports = %v\nwant %v", names, want)

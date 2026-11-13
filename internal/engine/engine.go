@@ -37,7 +37,13 @@ func Render(input string, ctx Context, loader Loader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	r := &renderer{source: input, loader: loader, loads: new(int)}
+	return renderEntry(tmpl, ctx, nil, loader)
+}
+
+// renderEntry renders tmpl in a new scope for ctx, resolving named templates
+// in set, which may be nil, and then through loader.
+func renderEntry(tmpl parsedTemplate, ctx Context, set *Set, loader Loader) (string, error) {
+	r := &renderer{source: tmpl.source, set: set, loader: loader, loads: new(int)}
 	out, err := r.renderNodes(tmpl.nodes, newRenderContext(ctx))
 	if err != nil {
 		return "", err

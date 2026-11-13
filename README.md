@@ -123,6 +123,8 @@ option that this port does not offer. An unclosed debug opening tag is a
 ```go
 func Render(input string, ctx Context, loader Loader) (string, error)
 func Validate(templates map[string]string, loader Loader) ([]Diagnostic, error)
+func Prepare(templates map[string]string, loader Loader) (*Set, []Diagnostic, error)
+func (s *Set) Render(name string, ctx Context) (string, error)
 ```
 
 - **`Value`** is the template datum, with seven forms selected by `Kind`:
@@ -150,8 +152,9 @@ func Validate(templates map[string]string, loader Loader) ([]Diagnostic, error)
   or `TemplateNotFound` for a missing target, whose `Message` is
   `missing include 'NAME'` or `missing extends 'NAME'`.
 
-`Render` and `Validate` read their arguments without modifying them and
-keep no state between calls.
+`Render`, `Validate` and `Prepare` read their arguments without modifying
+them; `Render` and `Validate` keep no state between calls. A `*Set` is
+immutable and safe for concurrent `Render` calls.
 
 ```go
 data := map[string]toupee.Value{
@@ -227,13 +230,66 @@ for _, d := range diags {
 The compiled version of this example is `ExampleValidate` in
 `validate_test.go`.
 
+### Prepared sets
+
+`Prepare` validates a named set once and keeps its parses, so its templates
+render for any number of contexts without being read or parsed again.
+
+- `Prepare` returns the diagnostics and error `Validate` returns for the
+  same arguments, in the same order, with the same loader calls. The
+  `*Set` is non-nil exactly when the error is nil and there are no
+  diagnostics. An empty or nil map prepares to an empty set.
+- `Prepare` keeps nothing of the map but its strings: changing or deleting
+  its entries afterwards does not change the set.
+- `Set.Render(name, ctx)` renders the set's template `name`. A name the set
+  lacks is `("", &RenderError{Kind: TemplateNotFound, Message: name})` with
+  `Line` and `Column` 0; the loader is not asked for an entry.
+- An include or extend target in the set is rendered from its retained
+  parse: it is not parsed again and the loader is not called. A target
+  outside the set goes to the loader given to `Prepare`, exactly as
+  `Render` treats its loader: called once per reference, parsed on each
+  render, `TemplateNotFound` located at the naming element, any other
+  loader error returned unchanged.
+- Output and errors are those `Render` gives for the same templates: kinds,
+  messages and positions (located in the source of the template the
+  failing element is in), and `""` on failure. One difference: a set
+  lookup is not a loader call, so a slot fill that re-enters itself through
+  set templates only is a `CircularReference` at the slot, where `Render`
+  with a loader does not detect it.
+- Not retained: slot fills (a `<t-define>` body or `Context.Slots` text is
+  parsed when its slot is met), and templates reached only through the
+  loader.
+- A `*Set` is never written after `Prepare`. `Set.Render` may be called
+  from any number of goroutines at once; each call has its own scope and
+  output. A loader given to `Prepare` must itself be safe for concurrent
+  use.
+
+```go
+set, diags, err := toupee.Prepare(map[string]string{
+	"layout.html":   `<main><t-include template="greeting.html" /></main>`,
+	"greeting.html": `Hello <t-var name="name" />!`,
+}, nil)
+// set != nil, diags == nil, err == nil
+for _, name := range []string{"Alice", "Bob"} {
+	ctx := toupee.Context{Data: map[string]toupee.Value{
+		"name": {Kind: toupee.KindString, String: name},
+	}}
+	out, _ := set.Render("layout.html", ctx)
+	fmt.Println(out)
+}
+// <main>Hello Alice!</main>
+// <main>Hello Bob!</main>
+```
+
+The compiled version of this example is `ExampleSet` in `set_test.go`.
+
 ## Layout
 
 Callers import only the root package. Following gridapp's ADR 0018, it
-holds one source file, `toupee.go`, with `Render`, `Validate` and the public
-types; `Context`, `Loader`, `Value`, `ValueKind`, `RenderError`,
-`ErrorKind` and `Diagnostic` are type aliases, and their constants re-exports, of the implementation's
-own, so values and errors pass through unchanged and `errors.As` works as
+holds one source file, `toupee.go`, with `Render`, `Validate`, `Prepare`
+and the public types; `Context`, `Loader`, `Value`, `ValueKind`,
+`RenderError`, `ErrorKind`, `Diagnostic` and `Set` are type aliases, and
+their constants re-exports, of the implementation's own, so values and errors pass through unchanged and `errors.As` works as
 before. (Reflection reports the defining package as `internal/engine`.)
 
 - `toupee.go`: the entry points and the package documentation.
@@ -304,6 +360,12 @@ A filtered run reports its selected count instead.
 Validation is not part of Toupee's corpus. `Validate` is pinned by
 `validate_test.go` against the reference's `engine validate` unit tests in
 Toupee v0.4.0's `src/root.zig`.
+
+Prepared sets are not part of Toupee's corpus either. `set_test.go` pins
+them against the reference's `engine addTemplate and renderTemplate` unit
+test, and `TestSpecThroughSet` renders every corpus case from a set of its
+named templates and input: 489 render and meet their expectation, and 30
+are refused by validation with the error kind the case expects.
 
 **A drift check.** `make spec-drift` runs `cmd/driftcheck`. It checks the
 local files against `SHA256SUMS`, which must record the pinned tag, and,

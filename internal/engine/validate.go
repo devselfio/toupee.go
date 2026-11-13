@@ -24,6 +24,15 @@ type Diagnostic struct {
 // are ordered by template name, then line, then column. Templates reached
 // only through loader are checked for existence, not parsed.
 func Validate(templates map[string]string, loader Loader) ([]Diagnostic, error) {
+	_, diags, err := check(templates, loader)
+	return diags, err
+}
+
+// check is Validate's pass, also returning the parse of every template
+// that parsed. The returned map is new; templates is read only during the
+// call.
+func check(templates map[string]string, loader Loader) (map[string]parsedTemplate, []Diagnostic, error) {
+	parsed := make(map[string]parsedTemplate, len(templates))
 	var diags []Diagnostic
 	for _, name := range slices.Sorted(maps.Keys(templates)) {
 		source := templates[name]
@@ -31,21 +40,22 @@ func Validate(templates map[string]string, loader Loader) ([]Diagnostic, error) 
 		if err != nil {
 			var re *RenderError
 			if !errors.As(err, &re) {
-				return nil, fmt.Errorf("toupee: validate %s: %w", name, err)
+				return nil, nil, fmt.Errorf("toupee: validate %s: %w", name, err)
 			}
 			diags = append(diags, Diagnostic{Template: name, Line: re.Line, Column: re.Column, Kind: re.Kind, Message: re.Message})
 			continue
 		}
 		v := &validator{name: name, source: source, templates: templates, loader: loader}
 		if err := v.walk(tmpl.nodes); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
+		parsed[name] = tmpl
 		slices.SortFunc(v.diags, func(a, b Diagnostic) int {
 			return cmp.Or(cmp.Compare(a.Line, b.Line), cmp.Compare(a.Column, b.Column))
 		})
 		diags = append(diags, v.diags...)
 	}
-	return diags, nil
+	return parsed, diags, nil
 }
 
 // validator walks one parsed template, collecting its missing targets.

@@ -16,9 +16,12 @@ const maxDepth = 50
 // is its name, "" for the input. depth counts the includes above it. fills
 // holds the slot fills being rendered around it, innermost last. loads
 // counts the loader calls made so far by the whole Render call; every
-// renderer of one call shares it.
+// renderer of one call shares it. set, nil for Render, is the prepared set
+// named templates are looked up in before the loader; a lookup there is not
+// a loader call.
 type renderer struct {
 	source       string
+	set          *Set
 	loader       Loader
 	loads        *int
 	templateName string
